@@ -81,9 +81,19 @@ func TestProjectManifest_Validate_NoChapters(t *testing.T) {
 			Name:      "alice",
 			CreatedAt: time.Now(),
 		},
+		Pipeline: PipelineProgress{Phases: map[string]PhaseStatus{
+			PhaseNameIngest: {Status: PhaseCompleted},
+		}},
 	}
 	if err := pm.Validate(); err == nil {
-		t.Error("expected error for no chapters, got nil")
+		t.Error("expected error for completed ingest with no chapters, got nil")
+	}
+}
+
+func TestProjectManifest_Validate_PreIngestNoChapters(t *testing.T) {
+	pm := NewProjectManifest("alice", "upload", "", nil)
+	if err := pm.Validate(); err != nil {
+		t.Errorf("expected no error for pre-ingest project, got: %v", err)
 	}
 }
 

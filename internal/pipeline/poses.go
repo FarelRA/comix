@@ -34,27 +34,28 @@ func (p *Pipeline) GeneratePoses(ctx context.Context, manifest *model.ProjectMan
 	for _, char := range note.Characters {
 		char := char
 		g.Go(func() error {
-			sheetPath := filepath.Join(storage.SheetsDir(outputDir, projectName), fmt.Sprintf("%s_3x2.png", char.ID))
+			charKey := storage.SlugName(char.Name)
+			sheetPath := filepath.Join(storage.SheetsDir(outputDir, projectName), fmt.Sprintf("%s_3x2.png", charKey))
 			sheetImage, err := loadImage(sheetPath)
 			if err != nil {
-				errs <- fmt.Sprintf("loading sheet for %q: %v", char.ID, err)
+				errs <- fmt.Sprintf("loading sheet for %q: %v", char.Name, err)
 				return err
 			}
 
 			prompt := imagegen.PromptPoseSheet(char.Name)
 			result, err := p.imgGen.Edit(ctx, sheetImage, prompt, p.cfg.OpenAI.Image.Size.Poses)
 			if err != nil {
-				errs <- fmt.Sprintf("generating poses for %q: %v", char.ID, err)
+				errs <- fmt.Sprintf("generating poses for %q: %v", char.Name, err)
 				return err
 			}
 
-			posePath := filepath.Join(storage.PosesDir(outputDir, projectName), fmt.Sprintf("%s_5x5.png", char.ID))
+			posePath := filepath.Join(storage.PosesDir(outputDir, projectName), fmt.Sprintf("%s_5x5.png", charKey))
 			if err := storage.SavePNG(posePath, result.Image); err != nil {
-				errs <- fmt.Sprintf("saving poses for %q: %v", char.ID, err)
+				errs <- fmt.Sprintf("saving poses for %q: %v", char.Name, err)
 				return err
 			}
 
-			slog.Info("generated 5x5 pose sheet", "character", char.Name, "id", char.ID)
+			slog.Info("generated 5x5 pose sheet", "character", char.Name, "key", charKey)
 			return nil
 		})
 	}

@@ -5,12 +5,29 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"sort"
 
 	"github.com/FarelRA/comix/internal/llm"
 	"github.com/FarelRA/comix/internal/model"
 	"github.com/FarelRA/comix/internal/state"
 	"github.com/FarelRA/comix/internal/storage"
 )
+
+type sceneExtractionResponse struct {
+	Schema    string                 `json:"$schema"`
+	ProjectID string                 `json:"project_id"`
+	Scenes    []sceneExtractionScene `json:"scenes"`
+}
+
+type sceneExtractionScene struct {
+	Sequence          int                  `json:"sequence"`
+	Description       string               `json:"description"`
+	CharactersPresent []string             `json:"characters_present"`
+	Location          string               `json:"location"`
+	Mood              string               `json:"mood"`
+	VisualCues        []string             `json:"visual_cues"`
+	Dialogue          []model.DialogueLine `json:"dialogue"`
+}
 
 func (p *Pipeline) ExtractScenes(ctx context.Context, manifest *model.ProjectManifest, note *model.CharacterNote, resume bool) (*model.SceneList, error) {
 	outputDir := p.cfg.Pipeline.OutputDir
@@ -60,27 +77,41 @@ func (p *Pipeline) ExtractScenes(ctx context.Context, manifest *model.ProjectMan
 
 		messages := p.buildSceneMessages(coverContent, chapterContent, note)
 
-		chapterScenes := &model.SceneList{}
+		chapterScenes := &sceneExtractionResponse{}
 		if err := p.llm.Chat(ctx, messages, chapterScenes, p.cfg.OpenAI.LLM.Temperature); err != nil {
 			return nil, fmt.Errorf("llm scene extraction for %s: %w", ch.ID, err)
 		}
 
+		sort.SliceStable(chapterScenes.Scenes, func(i, j int) bool {
+			return chapterScenes.Scenes[i].Sequence < chapterScenes.Scenes[j].Sequence
+		})
+
+		seenSequences := make(map[int]bool, len(chapterScenes.Scenes))
 		for i := range chapterScenes.Scenes {
-			s := &chapterScenes.Scenes[i]
-			s.Chapter = ch.ID
+			draft := chapterScenes.Scenes[i]
+			if draft.Sequence < 1 {
+				return nil, fmt.Errorf("llm scene extraction for %s returned invalid sequence %d", ch.ID, draft.Sequence)
+			}
+			if seenSequences[draft.Sequence] {
+				return nil, fmt.Errorf("llm scene extraction for %s returned duplicate sequence %d", ch.ID, draft.Sequence)
+			}
+			seenSequences[draft.Sequence] = true
+			s := model.Scene{
+				Description:       draft.Description,
+				CharactersPresent: draft.CharactersPresent,
+				Location:          draft.Location,
+				Mood:              draft.Mood,
+				VisualCues:        draft.VisualCues,
+				Dialogue:          draft.Dialogue,
+				Chapter:           ch.ID,
+				Sequence:          draft.Sequence,
+			}
 			globalCounter++
 			s.GlobalSequence = globalCounter
-			if s.ChapterSequence == 0 {
-				s.ChapterSequence = i + 1
-			}
-			if s.PanelCount < 1 {
-				s.PanelCount = 1
-			}
 
-			p.validateCharacterRefs(s, note, ch.ID)
+			p.validateCharacterRefs(&s, note, ch.ID)
+			sceneList.Scenes = append(sceneList.Scenes, s)
 		}
-
-		sceneList.Scenes = append(sceneList.Scenes, chapterScenes.Scenes...)
 
 		if err := state.SaveSceneList(outputDir, projectName, sceneList); err != nil {
 			return nil, fmt.Errorf("saving scene list after %s: %w", ch.ID, err)
@@ -94,18 +125,21 @@ func (p *Pipeline) ExtractScenes(ctx context.Context, manifest *model.ProjectMan
 
 func (p *Pipeline) validateCharacterRefs(scene *model.Scene, note *model.CharacterNote, chapterID string) {
 	if note == nil {
-		slog.Warn("scene validation skipped because CharacterNote is missing", "scene", scene.ID, "chapter", chapterID)
+		slog.Warn("scene validation skipped because CharacterNote is missing", "scene", scene.Key(), "chapter", chapterID)
 		return
 	}
 	charIndex := make(map[string]bool)
 	for _, c := range note.Characters {
-		charIndex[c.ID] = true
+		charIndex[characterLookupKey(c.Name)] = true
+		for _, alias := range c.Aliases {
+			charIndex[characterLookupKey(alias)] = true
+		}
 	}
 
-	for _, charID := range scene.CharactersPresent {
-		if !charIndex[charID] {
+	for _, charName := range scene.CharactersPresent {
+		if !charIndex[characterLookupKey(charName)] {
 			slog.Warn("scene references character not found in CharacterNote",
-				"scene", scene.ID, "chapter", chapterID, "character", charID)
+				"scene", scene.Key(), "chapter", chapterID, "character", charName)
 		}
 	}
 }

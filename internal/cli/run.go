@@ -43,13 +43,9 @@ The pipeline consists of 6 phases:
 5. Generate dynamic poses (5x5 grids)
 6. Render sequential comic panels`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := loadConfig()
+		cfg, err := loadConfigForOpenAI()
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
-		}
-
-		if cfg.OpenAI.APIKey == "" {
-			return fmt.Errorf("OPENAI_API_KEY is not set. Set it via export OPENAI_API_KEY=sk-... or in config.yaml")
 		}
 
 		llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).

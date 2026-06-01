@@ -50,6 +50,14 @@ func init() {
 }
 
 func loadConfig() (*config.Config, error) {
+	return loadConfigWithValidation(false)
+}
+
+func loadConfigForOpenAI() (*config.Config, error) {
+	return loadConfigWithValidation(true)
+}
+
+func loadConfigWithValidation(requireOpenAI bool) (*config.Config, error) {
 	cfg, err := config.LoadConfigWithOverrides(cfgFile, rootCmd.PersistentFlags())
 	if err != nil {
 		return nil, err
@@ -60,8 +68,14 @@ func loadConfig() (*config.Config, error) {
 	if rootCmd.PersistentFlags().Changed("log-format") {
 		cfg.Logging.Format = logFormat
 	}
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+	var validateErr error
+	if requireOpenAI {
+		validateErr = cfg.ValidateForOpenAI()
+	} else {
+		validateErr = cfg.ValidateLocal()
+	}
+	if validateErr != nil {
+		return nil, validateErr
 	}
 	return cfg, nil
 }

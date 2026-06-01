@@ -29,6 +29,49 @@ type Server struct {
 	tasks    sync.Map
 }
 
+type taskState struct {
+	mu        sync.Mutex
+	Cancel    context.CancelFunc
+	ProjectID string
+	Phase     string
+	Status    string
+	StartedAt time.Time
+	EndedAt   *time.Time
+	Error     string
+}
+
+type taskSnapshot struct {
+	ProjectID string     `json:"project_id"`
+	Phase     string     `json:"phase"`
+	Status    string     `json:"status"`
+	StartedAt time.Time  `json:"started_at"`
+	EndedAt   *time.Time `json:"ended_at,omitempty"`
+	Error     string     `json:"error,omitempty"`
+}
+
+func (t *taskState) snapshot() *taskSnapshot {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return &taskSnapshot{ProjectID: t.ProjectID, Phase: t.Phase, Status: t.Status, StartedAt: t.StartedAt, EndedAt: t.EndedAt, Error: t.Error}
+}
+
+func (t *taskState) fail(err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.Status = "failed"
+	t.Error = err.Error()
+}
+
+func (t *taskState) finish() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	ended := time.Now().UTC()
+	t.EndedAt = &ended
+	if t.Error == "" {
+		t.Status = "completed"
+	}
+}
+
 func NewServer(cfg *config.Config, p *pipeline.Pipeline) *Server {
 	s := &Server{
 		cfg:      cfg,
@@ -90,6 +133,9 @@ func (s *Server) Start() error {
 	if s.cfg.Server.AuthToken == "" && s.cfg.Server.Host != "localhost" && s.cfg.Server.Host != "127.0.0.1" && s.cfg.Server.Host != "::1" {
 		return fmt.Errorf("server.auth_token is required when binding to non-local host %q", s.cfg.Server.Host)
 	}
+	if s.cfg.Server.AuthToken == "" {
+		slog.Warn("server authentication disabled; use only behind trusted local access", "host", s.cfg.Server.Host)
+	}
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.Server.Host, s.cfg.Server.Port)
 
@@ -113,8 +159,8 @@ func (s *Server) Start() error {
 		slog.Info("shutting down server...")
 
 		s.tasks.Range(func(key, value interface{}) bool {
-			if cancel, ok := value.(context.CancelFunc); ok && cancel != nil {
-				cancel()
+			if task, ok := value.(*taskState); ok && task.Cancel != nil {
+				task.Cancel()
 			}
 			return true
 		})

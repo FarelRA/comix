@@ -89,8 +89,8 @@ func (pm *ProjectManifest) Validate() error {
 	if pm.Project.CreatedAt.IsZero() {
 		return fmt.Errorf("project manifest: created_at is required")
 	}
-	if len(pm.Project.Chapters) == 0 {
-		return fmt.Errorf("project manifest: at least one chapter is required")
+	if len(pm.Project.Chapters) == 0 && pm.Pipeline.Phases[PhaseNameIngest].Status == PhaseCompleted {
+		return fmt.Errorf("project manifest: completed ingest requires at least one chapter")
 	}
 	for i, ch := range pm.Project.Chapters {
 		if err := ch.Validate(); err != nil {

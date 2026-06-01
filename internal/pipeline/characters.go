@@ -23,14 +23,13 @@ func (p *Pipeline) ExtractCharacters(ctx context.Context, manifest *model.Projec
 		existing, err := state.LoadCharacterNote(outputDir, projectName)
 		if err == nil && existing != nil {
 			note = existing
-			slog.Info("loaded existing character note", "version", note.Version, "characters", len(note.Characters))
+			slog.Info("loaded existing character note", "characters", len(note.Characters))
 		}
 	}
 
 	if note == nil {
 		note = &model.CharacterNote{
-			Schema:  "comix/character-note/v1",
-			Version: 1,
+			Schema: "comix/character-note/v1",
 		}
 	}
 
@@ -60,19 +59,12 @@ func (p *Pipeline) ExtractCharacters(ctx context.Context, manifest *model.Projec
 
 		if len(updated.Characters) == 0 && len(note.Characters) > 0 {
 			updated.Characters = note.Characters
-			updated.Version = note.Version
-			updated.LastUpdatedChapter = ch.ID
 			updated.Schema = note.Schema
 		}
 
 		if updated.Schema == "" {
 			updated.Schema = "comix/character-note/v1"
 		}
-		if updated.Version < 1 {
-			updated.Version = note.Version + 1
-		}
-		updated.LastUpdatedChapter = ch.ID
-
 		note = updated
 
 		if err := state.SaveCharacterNote(outputDir, projectName, note); err != nil {
@@ -94,14 +86,18 @@ func (p *Pipeline) readRawFile(outputDir, projectName, filename string) (string,
 }
 
 func (p *Pipeline) chaptersNeedingCharacterExtraction(manifest *model.ProjectManifest, note *model.CharacterNote, resume bool) []model.ChapterMeta {
-	if !resume || note == nil || note.LastUpdatedChapter == "" {
+	if !resume || note == nil {
+		return manifest.Project.Chapters
+	}
+	lastChapter := lastCharacterChapter(note, manifest.Project.Chapters)
+	if lastChapter == "" {
 		return manifest.Project.Chapters
 	}
 
 	var remaining []model.ChapterMeta
 	found := false
 	for _, ch := range manifest.Project.Chapters {
-		if ch.ID == note.LastUpdatedChapter {
+		if ch.ID == lastChapter {
 			found = true
 			continue
 		}
@@ -115,10 +111,26 @@ func (p *Pipeline) chaptersNeedingCharacterExtraction(manifest *model.ProjectMan
 	}
 
 	if len(remaining) == 0 {
-		slog.Debug("all chapters already processed for characters", "last", note.LastUpdatedChapter)
+		slog.Debug("all chapters already processed for characters", "last", lastChapter)
 	}
 
 	return remaining
+}
+
+func lastCharacterChapter(note *model.CharacterNote, chapters []model.ChapterMeta) string {
+	seen := make(map[string]bool)
+	for _, c := range note.Characters {
+		for _, ch := range c.ChaptersSeen {
+			seen[ch] = true
+		}
+	}
+	last := ""
+	for _, ch := range chapters {
+		if seen[ch.ID] {
+			last = ch.ID
+		}
+	}
+	return last
 }
 
 func (p *Pipeline) buildCharacterMessages(coverContent, chapterContent string, note *model.CharacterNote) []llm.Message {

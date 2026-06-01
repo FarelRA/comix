@@ -122,41 +122,11 @@ func applyEnvCompatibility(cfg *Config) {
 }
 
 func (c *Config) Validate() error {
+	return c.ValidateForOpenAI()
+}
+
+func (c *Config) ValidateLocal() error {
 	var errs []string
-
-	if c.OpenAI.APIKey == "" {
-		errs = append(errs, "openai.api_key is required. Set it via COMIX_OPENAI_API_KEY env var, OPENAI_API_KEY env var, or in config.yaml")
-	} else if c.OpenAI.BaseURL == "https://api.openai.com/v1" && !regexp.MustCompile(`^sk-`).MatchString(c.OpenAI.APIKey) {
-		errs = append(errs, "openai.api_key should start with 'sk-'. Check your OpenAI API key is correct")
-	}
-
-	if c.OpenAI.LLM.Temperature < 0 || c.OpenAI.LLM.Temperature > 2 {
-		errs = append(errs, "openai.llm.temperature must be between 0 and 2")
-	}
-	if c.OpenAI.LLM.MaxRetries < 0 {
-		errs = append(errs, "openai.llm.max_retries must be >= 0")
-	}
-	validLLMReasoning := map[string]bool{"none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true}
-	if !validLLMReasoning[c.OpenAI.LLM.Thinking] {
-		errs = append(errs, fmt.Sprintf("openai.llm.thinking must be one of: none, minimal, low, medium, high, xhigh (got %q)", c.OpenAI.LLM.Thinking))
-	}
-
-	validQualities := map[string]bool{"low": true, "medium": true, "high": true}
-	if !validQualities[c.OpenAI.Image.Quality] {
-		errs = append(errs, fmt.Sprintf("openai.image.quality must be one of: low, medium, high (got %q)", c.OpenAI.Image.Quality))
-	}
-	if c.OpenAI.Image.Size.Sheet == "" {
-		errs = append(errs, "openai.image.size.sheet must not be empty")
-	}
-	if c.OpenAI.Image.Size.Poses == "" {
-		errs = append(errs, "openai.image.size.poses must not be empty")
-	}
-	if c.OpenAI.Image.Size.Panel == "" {
-		errs = append(errs, "openai.image.size.panel must not be empty")
-	}
-	if c.OpenAI.Image.MaxRetries < 0 {
-		errs = append(errs, "openai.image.max_retries must be >= 0")
-	}
 	if c.Pipeline.MaxConcurrentSheets < 1 {
 		errs = append(errs, "pipeline.max_concurrent_sheets must be >= 1")
 	}
@@ -194,6 +164,49 @@ func (c *Config) Validate() error {
 		errs = append(errs, fmt.Sprintf("logging.format must be one of: text, json (got %q)", c.Logging.Format))
 	}
 
+	if len(errs) > 0 {
+		return errors.New("configuration validation failed:\n  - " + strings.Join(errs, "\n  - "))
+	}
+	return nil
+}
+
+func (c *Config) ValidateForOpenAI() error {
+	var errs []string
+	if err := c.ValidateLocal(); err != nil {
+		errs = append(errs, strings.TrimPrefix(err.Error(), "configuration validation failed:\n  - "))
+	}
+
+	if c.OpenAI.APIKey == "" {
+		errs = append(errs, "openai.api_key is required. Set it via COMIX_OPENAI_API_KEY env var, OPENAI_API_KEY env var, or in config.yaml")
+	} else if c.OpenAI.BaseURL == "https://api.openai.com/v1" && !regexp.MustCompile(`^sk-`).MatchString(c.OpenAI.APIKey) {
+		errs = append(errs, "openai.api_key should start with 'sk-'. Check your OpenAI API key is correct")
+	}
+	if c.OpenAI.LLM.Temperature < 0 || c.OpenAI.LLM.Temperature > 2 {
+		errs = append(errs, "openai.llm.temperature must be between 0 and 2")
+	}
+	if c.OpenAI.LLM.MaxRetries < 0 {
+		errs = append(errs, "openai.llm.max_retries must be >= 0")
+	}
+	validLLMReasoning := map[string]bool{"none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true}
+	if !validLLMReasoning[c.OpenAI.LLM.Thinking] {
+		errs = append(errs, fmt.Sprintf("openai.llm.thinking must be one of: none, minimal, low, medium, high, xhigh (got %q)", c.OpenAI.LLM.Thinking))
+	}
+	validQualities := map[string]bool{"low": true, "medium": true, "high": true}
+	if !validQualities[c.OpenAI.Image.Quality] {
+		errs = append(errs, fmt.Sprintf("openai.image.quality must be one of: low, medium, high (got %q)", c.OpenAI.Image.Quality))
+	}
+	if c.OpenAI.Image.Size.Sheet == "" {
+		errs = append(errs, "openai.image.size.sheet must not be empty")
+	}
+	if c.OpenAI.Image.Size.Poses == "" {
+		errs = append(errs, "openai.image.size.poses must not be empty")
+	}
+	if c.OpenAI.Image.Size.Panel == "" {
+		errs = append(errs, "openai.image.size.panel must not be empty")
+	}
+	if c.OpenAI.Image.MaxRetries < 0 {
+		errs = append(errs, "openai.image.max_retries must be >= 0")
+	}
 	if len(errs) > 0 {
 		return errors.New("configuration validation failed:\n  - " + strings.Join(errs, "\n  - "))
 	}

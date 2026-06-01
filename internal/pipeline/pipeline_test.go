@@ -250,9 +250,9 @@ func TestRenderScenes_FirstSceneGenerate(t *testing.T) {
 	}
 
 	for _, s := range scenes.Scenes {
-		panelPath := filepath.Join(storage.PanelsDir(outputDir, "test-proj"), s.ID+".png")
+		panelPath := filepath.Join(storage.PanelsDir(outputDir, "test-proj"), s.Key()+".png")
 		if _, err := os.Stat(panelPath); os.IsNotExist(err) {
-			t.Errorf("panel file %s was not created", s.ID)
+			t.Errorf("panel file %s was not created", s.Key())
 		}
 	}
 }
@@ -321,7 +321,7 @@ func TestRenderScenes_ResumeSkipsExisting(t *testing.T) {
 	if err := os.MkdirAll(panelsDir, 0755); err != nil {
 		t.Fatalf("mkdir panels: %v", err)
 	}
-	if err := saveTestPNG(filepath.Join(panelsDir, "scene_001.png"), 50, 50); err != nil {
+	if err := saveTestPNG(filepath.Join(panelsDir, scenes.Scenes[0].Key()+".png"), 50, 50); err != nil {
 		t.Fatalf("creating fake panel: %v", err)
 	}
 
@@ -330,7 +330,7 @@ func TestRenderScenes_ResumeSkipsExisting(t *testing.T) {
 	}
 
 	if callCount != 2 {
-		t.Errorf("expected 2 API calls (skipping scene_001), got %d", callCount)
+		t.Errorf("expected 2 API calls (skipping first scene), got %d", callCount)
 	}
 }
 
@@ -508,12 +508,9 @@ func createTestManifest(t *testing.T, outputDir string) *model.ProjectManifest {
 
 func createTestCharacterNote() *model.CharacterNote {
 	return &model.CharacterNote{
-		Schema:             "comix/character-note/v1",
-		Version:            1,
-		LastUpdatedChapter: "chapter_02",
+		Schema: "comix/character-note/v1",
 		Characters: []model.Character{
 			{
-				ID:                  "alice",
 				Name:                "Alice",
 				PhysicalDescription: "Young girl, blue eyes, blonde hair, blue dress",
 				FirstChapter:        "chapter_01",
@@ -529,40 +526,34 @@ func createTestSceneList() *model.SceneList {
 		ProjectID: "test-proj",
 		Scenes: []model.Scene{
 			{
-				ID:                "scene_001",
 				Chapter:           "chapter_01",
-				ChapterSequence:   1,
+				Sequence:          1,
 				GlobalSequence:    1,
 				Description:       "Alice sits on a riverbank.",
-				CharactersPresent: []string{"alice"},
+				CharactersPresent: []string{"Alice"},
 				Location:          "riverside",
 				Mood:              "peaceful",
 				VisualCues:        []string{"sunny", "green grass"},
-				PanelCount:        1,
 			},
 			{
-				ID:                "scene_002",
 				Chapter:           "chapter_01",
-				ChapterSequence:   2,
+				Sequence:          2,
 				GlobalSequence:    2,
 				Description:       "A white rabbit runs past.",
-				CharactersPresent: []string{"alice"},
+				CharactersPresent: []string{"Alice"},
 				Location:          "riverside",
 				Mood:              "sudden",
 				VisualCues:        []string{"rabbit", "pocket watch"},
-				PanelCount:        1,
 			},
 			{
-				ID:                "scene_003",
 				Chapter:           "chapter_02",
-				ChapterSequence:   1,
+				Sequence:          1,
 				GlobalSequence:    3,
 				Description:       "Alice grows very tall.",
-				CharactersPresent: []string{"alice"},
+				CharactersPresent: []string{"Alice"},
 				Location:          "hallway",
 				Mood:              "confused",
 				VisualCues:        []string{"tall ceiling", "tiny door"},
-				PanelCount:        1,
 			},
 		},
 	}
@@ -687,8 +678,8 @@ func TestWordCount(t *testing.T) {
 func TestBuildCharacterIndex(t *testing.T) {
 	note := &model.CharacterNote{
 		Characters: []model.Character{
-			{ID: "alice", Name: "Alice", PhysicalDescription: "young girl"},
-			{ID: "rabbit", Name: "White Rabbit", PhysicalDescription: "white rabbit"},
+			{Name: "Alice", PhysicalDescription: "young girl"},
+			{Name: "White Rabbit", PhysicalDescription: "white rabbit"},
 		},
 	}
 	idx := buildCharacterIndex(note)
@@ -698,7 +689,7 @@ func TestBuildCharacterIndex(t *testing.T) {
 	if idx["alice"].Name != "Alice" {
 		t.Errorf("expected 'Alice', got %q", idx["alice"].Name)
 	}
-	if idx["rabbit"].PhysicalDescription != "white rabbit" {
+	if idx["white rabbit"].PhysicalDescription != "white rabbit" {
 		t.Errorf("expected 'white rabbit', got %q", idx["rabbit"].PhysicalDescription)
 	}
 }
@@ -746,57 +737,57 @@ func TestBuildSceneDescription_NoMoodOrCues(t *testing.T) {
 	}
 }
 
-func TestResolveSpeaker_DirectID(t *testing.T) {
+func TestResolveSpeaker_DirectName(t *testing.T) {
 	charIndex := map[string]model.Character{
-		"alice": {ID: "alice", Name: "Alice"},
+		"alice": {Name: "Alice"},
 	}
-	id := resolveSpeaker("alice", charIndex)
-	if id != "alice" {
-		t.Errorf("expected 'alice', got %q", id)
+	name := resolveSpeaker("alice", charIndex)
+	if name != "Alice" {
+		t.Errorf("expected 'Alice', got %q", name)
 	}
 }
 
 func TestResolveSpeaker_ByName(t *testing.T) {
 	charIndex := map[string]model.Character{
-		"alice": {ID: "alice", Name: "Alice"},
+		"alice": {Name: "Alice"},
 	}
-	id := resolveSpeaker("Alice", charIndex)
-	if id != "alice" {
-		t.Errorf("expected 'alice', got %q", id)
+	name := resolveSpeaker("Alice", charIndex)
+	if name != "Alice" {
+		t.Errorf("expected 'Alice', got %q", name)
 	}
 }
 
 func TestResolveSpeaker_ByAlias(t *testing.T) {
 	charIndex := map[string]model.Character{
-		"rabbit": {ID: "rabbit", Name: "White Rabbit", Aliases: []string{"Whitey"}},
+		"white rabbit": {Name: "White Rabbit", Aliases: []string{"Whitey"}},
 	}
-	id := resolveSpeaker("Whitey", charIndex)
-	if id != "rabbit" {
-		t.Errorf("expected 'rabbit', got %q", id)
+	name := resolveSpeaker("Whitey", charIndex)
+	if name != "White Rabbit" {
+		t.Errorf("expected 'White Rabbit', got %q", name)
 	}
 }
 
 func TestResolveSpeaker_NotFound(t *testing.T) {
 	charIndex := map[string]model.Character{
-		"alice": {ID: "alice", Name: "Alice"},
+		"alice": {Name: "Alice"},
 	}
-	id := resolveSpeaker("nonexistent", charIndex)
-	if id != "" {
-		t.Errorf("expected empty string, got %q", id)
+	name := resolveSpeaker("nonexistent", charIndex)
+	if name != "" {
+		t.Errorf("expected empty string, got %q", name)
 	}
 }
 
 func TestResolveSpeaker_EmptyIndex(t *testing.T) {
 	charIndex := map[string]model.Character{}
-	id := resolveSpeaker("alice", charIndex)
-	if id != "" {
-		t.Errorf("expected empty string, got %q", id)
+	name := resolveSpeaker("alice", charIndex)
+	if name != "" {
+		t.Errorf("expected empty string, got %q", name)
 	}
 }
 
 func TestBuildDialogueMap(t *testing.T) {
 	charIndex := map[string]model.Character{
-		"alice": {ID: "alice", Name: "Alice"},
+		"alice": {Name: "Alice"},
 	}
 	dialogue := []model.DialogueLine{
 		{Speaker: "alice", Text: "Hello"},
@@ -822,10 +813,10 @@ func TestBuildDialogueMap_Empty(t *testing.T) {
 func TestBuildSceneCharacterRefs(t *testing.T) {
 	p := &Pipeline{}
 	charIndex := map[string]model.Character{
-		"alice": {ID: "alice", Name: "Alice", PhysicalDescription: "young girl"},
+		"alice": {Name: "Alice", PhysicalDescription: "young girl"},
 	}
 	scene := model.Scene{
-		CharactersPresent: []string{"alice"},
+		CharactersPresent: []string{"Alice"},
 	}
 	refs := p.buildSceneCharacterRefs(scene, charIndex, 0)
 	if !strings.Contains(refs, "Alice") {
@@ -849,7 +840,7 @@ func TestBuildSceneCharacterRefs_MissingCharacter(t *testing.T) {
 	p := &Pipeline{}
 	charIndex := map[string]model.Character{}
 	scene := model.Scene{
-		CharactersPresent: []string{"alice"},
+		CharactersPresent: []string{"Alice"},
 	}
 	refs := p.buildSceneCharacterRefs(scene, charIndex, 0)
 	if !strings.Contains(refs, "character reference not found") {
@@ -860,11 +851,11 @@ func TestBuildSceneCharacterRefs_MissingCharacter(t *testing.T) {
 func TestBuildSceneCharacterRefs_WithDialogue(t *testing.T) {
 	p := &Pipeline{}
 	charIndex := map[string]model.Character{
-		"alice": {ID: "alice", Name: "Alice", PhysicalDescription: "young girl"},
+		"alice": {Name: "Alice", PhysicalDescription: "young girl"},
 	}
 	scene := model.Scene{
-		CharactersPresent: []string{"alice"},
-		Dialogue:          []model.DialogueLine{{Speaker: "alice", Text: "Hello!"}},
+		CharactersPresent: []string{"Alice"},
+		Dialogue:          []model.DialogueLine{{Speaker: "Alice", Text: "Hello!"}},
 	}
 	refs := p.buildSceneCharacterRefs(scene, charIndex, 0)
 	if !strings.Contains(refs, "Hello!") {
@@ -875,13 +866,13 @@ func TestBuildSceneCharacterRefs_WithDialogue(t *testing.T) {
 func TestBuildSceneCharacterRefs_WithImageStartIdx(t *testing.T) {
 	p := &Pipeline{}
 	charIndex := map[string]model.Character{
-		"alice":        {ID: "alice", Name: "Alice", PhysicalDescription: "young girl"},
-		"white_rabbit": {ID: "white_rabbit", Name: "White Rabbit", PhysicalDescription: "white rabbit with waistcoat"},
+		"alice":        {Name: "Alice", PhysicalDescription: "young girl"},
+		"white rabbit": {Name: "White Rabbit", PhysicalDescription: "white rabbit with waistcoat"},
 	}
 
 	scene := model.Scene{
-		CharactersPresent: []string{"alice", "white_rabbit"},
-		Dialogue:          []model.DialogueLine{{Speaker: "alice", Text: "Oh dear!"}},
+		CharactersPresent: []string{"Alice", "White Rabbit"},
+		Dialogue:          []model.DialogueLine{{Speaker: "Alice", Text: "Oh dear!"}},
 	}
 
 	refs := p.buildSceneCharacterRefs(scene, charIndex, 1)
@@ -890,7 +881,7 @@ func TestBuildSceneCharacterRefs_WithImageStartIdx(t *testing.T) {
 		t.Error("expected alice to have [image 1, image 2] (2 refs since <=7 chars)")
 	}
 	if !strings.Contains(refs, "[image 3, image 4]") {
-		t.Error("expected white_rabbit to have [image 3, image 4]")
+		t.Error("expected White Rabbit to have [image 3, image 4]")
 	}
 	if !strings.Contains(refs, "\"Oh dear!\"") {
 		t.Error("expected dialogue in refs")
@@ -900,18 +891,18 @@ func TestBuildSceneCharacterRefs_WithImageStartIdx(t *testing.T) {
 func TestBuildSceneCharacterRefs_WithImageStartIdxManyChars(t *testing.T) {
 	p := &Pipeline{}
 	charIndex := map[string]model.Character{
-		"alice":    {ID: "alice", Name: "Alice", PhysicalDescription: "young girl"},
-		"hatter":   {ID: "hatter", Name: "Mad Hatter", PhysicalDescription: "eccentric man"},
-		"rabbit":   {ID: "rabbit", Name: "White Rabbit", PhysicalDescription: "white rabbit"},
-		"cat":      {ID: "cat", Name: "Cheshire Cat", PhysicalDescription: "striped cat"},
-		"queen":    {ID: "queen", Name: "Queen of Hearts", PhysicalDescription: "imperious woman"},
-		"king":     {ID: "king", Name: "King of Hearts", PhysicalDescription: "nervous man"},
-		"march":    {ID: "march", Name: "March Hare", PhysicalDescription: "frantic hare"},
-		"dormouse": {ID: "dormouse", Name: "Dormouse", PhysicalDescription: "sleepy mouse"},
+		"alice":           {Name: "Alice", PhysicalDescription: "young girl"},
+		"mad hatter":      {Name: "Mad Hatter", PhysicalDescription: "eccentric man"},
+		"white rabbit":    {Name: "White Rabbit", PhysicalDescription: "white rabbit"},
+		"cheshire cat":    {Name: "Cheshire Cat", PhysicalDescription: "striped cat"},
+		"queen of hearts": {Name: "Queen of Hearts", PhysicalDescription: "imperious woman"},
+		"king of hearts":  {Name: "King of Hearts", PhysicalDescription: "nervous man"},
+		"march hare":      {Name: "March Hare", PhysicalDescription: "frantic hare"},
+		"dormouse":        {Name: "Dormouse", PhysicalDescription: "sleepy mouse"},
 	}
 
 	scene := model.Scene{
-		CharactersPresent: []string{"alice", "hatter", "rabbit", "cat", "queen", "king", "march", "dormouse"},
+		CharactersPresent: []string{"Alice", "Mad Hatter", "White Rabbit", "Cheshire Cat", "Queen of Hearts", "King of Hearts", "March Hare", "Dormouse"},
 	}
 
 	refs := p.buildSceneCharacterRefs(scene, charIndex, 2)
@@ -967,8 +958,7 @@ func TestChaptersNeedingCharacterExtraction_Resume(t *testing.T) {
 		Project: model.ProjectMeta{Chapters: chapters},
 	}
 	note := &model.CharacterNote{
-		LastUpdatedChapter: "ch1",
-		Characters:         []model.Character{{ID: "alice"}},
+		Characters: []model.Character{{Name: "Alice", ChaptersSeen: []string{"ch1"}}},
 	}
 
 	got := p.chaptersNeedingCharacterExtraction(manifest, note, true)
@@ -990,8 +980,7 @@ func TestChaptersNeedingCharacterExtraction_AllDone(t *testing.T) {
 		Project: model.ProjectMeta{Chapters: chapters},
 	}
 	note := &model.CharacterNote{
-		LastUpdatedChapter: "ch2",
-		Characters:         []model.Character{{ID: "alice"}},
+		Characters: []model.Character{{Name: "Alice", ChaptersSeen: []string{"ch1", "ch2"}}},
 	}
 
 	got := p.chaptersNeedingCharacterExtraction(manifest, note, true)
@@ -1010,8 +999,7 @@ func TestChaptersNeedingCharacterExtraction_LastChapterNotFound(t *testing.T) {
 		Project: model.ProjectMeta{Chapters: chapters},
 	}
 	note := &model.CharacterNote{
-		LastUpdatedChapter: "nonexistent",
-		Characters:         []model.Character{{ID: "alice"}},
+		Characters: []model.Character{{Name: "Alice", ChaptersSeen: []string{"nonexistent"}}},
 	}
 
 	got := p.chaptersNeedingCharacterExtraction(manifest, note, true)
@@ -1101,7 +1089,7 @@ func TestBuildCharacterMessages(t *testing.T) {
 	note := &model.CharacterNote{
 		Schema: "comix/character-note/v1",
 		Characters: []model.Character{
-			{ID: "alice", Name: "Alice", PhysicalDescription: "young girl"},
+			{Name: "Alice", PhysicalDescription: "young girl"},
 		},
 	}
 	messages := p.buildCharacterMessages("cover content", "chapter content", note)
@@ -1134,7 +1122,7 @@ func TestBuildSceneMessages(t *testing.T) {
 	p := &Pipeline{}
 	note := &model.CharacterNote{
 		Characters: []model.Character{
-			{ID: "alice", Name: "Alice"},
+			{Name: "Alice"},
 		},
 	}
 	messages := p.buildSceneMessages("cover content", "chapter content", note)
@@ -1156,12 +1144,13 @@ func TestValidateCharacterRefs_Found(t *testing.T) {
 	p := &Pipeline{}
 	note := &model.CharacterNote{
 		Characters: []model.Character{
-			{ID: "alice"},
+			{Name: "Alice"},
 		},
 	}
 	scene := &model.Scene{
-		ID:                "s1",
-		CharactersPresent: []string{"alice"},
+		Chapter:           "ch1",
+		Sequence:          1,
+		CharactersPresent: []string{"Alice"},
 	}
 	p.validateCharacterRefs(scene, note, "ch1")
 }
@@ -1170,11 +1159,12 @@ func TestValidateCharacterRefs_NotFound(t *testing.T) {
 	p := &Pipeline{}
 	note := &model.CharacterNote{
 		Characters: []model.Character{
-			{ID: "alice"},
+			{Name: "Alice"},
 		},
 	}
 	scene := &model.Scene{
-		ID:                "s1",
+		Chapter:           "ch1",
+		Sequence:          1,
 		CharactersPresent: []string{"nonexistent"},
 	}
 	p.validateCharacterRefs(scene, note, "ch1")

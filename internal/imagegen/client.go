@@ -89,7 +89,7 @@ func (c *Client) Generate(ctx context.Context, prompt, size string, references .
 	ctx, span := tracer.Start(ctx, "image.generate")
 	defer span.End()
 	if len(references) > 0 {
-		return c.editImages(ctx, references, prompt, size)
+		return c.GenerateWithReferences(ctx, prompt, size, references...)
 	}
 	resp, err := c.getClient().Images.Generate(ctx, openai.ImageGenerateParams{
 		Model:   openai.ImageModel(c.model),
@@ -102,6 +102,13 @@ func (c *Client) Generate(ctx context.Context, prompt, size string, references .
 		return nil, fmt.Errorf("image generation: %w", err)
 	}
 	return parseResponse(resp, c.httpClient)
+}
+
+func (c *Client) GenerateWithReferences(ctx context.Context, prompt, size string, references ...image.Image) (*ImageResult, error) {
+	if len(references) == 0 {
+		return c.Generate(ctx, prompt, size)
+	}
+	return c.editImages(ctx, references, prompt, size)
 }
 
 func (c *Client) Edit(ctx context.Context, input image.Image, prompt, size string, additionalRefs ...image.Image) (*ImageResult, error) {
