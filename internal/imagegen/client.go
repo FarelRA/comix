@@ -108,67 +108,6 @@ func (c *Client) WithBaseURL(url string) *Client {
 	return c
 }
 
-func (c *Client) Generate(ctx context.Context, prompt, size string) (*ImageResult, error) {
-	body := generateRequest{
-		Model:    c.model,
-		Prompt:   prompt,
-		N:        1,
-		Quality:  c.quality,
-		Size:     size,
-		Thinking: c.thinking,
-	}
-
-	var result *ImageResult
-	var lastErr error
-
-	for attempt := 0; attempt <= c.maxRetries; attempt++ {
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(c.backoffDuration(attempt)):
-			}
-		}
-
-		result, lastErr = c.doGenerate(ctx, body)
-		if lastErr == nil {
-			return result, nil
-		}
-
-		if !isRetryable(lastErr) {
-			return nil, lastErr
-		}
-	}
-
-	return nil, fmt.Errorf("image generation failed after %d retries: %w", c.maxRetries, lastErr)
-}
-
-func (c *Client) Edit(ctx context.Context, input image.Image, prompt, size string) (*ImageResult, error) {
-	var result *ImageResult
-	var lastErr error
-
-	for attempt := 0; attempt <= c.maxRetries; attempt++ {
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(c.backoffDuration(attempt)):
-			}
-		}
-
-		result, lastErr = c.doEdit(ctx, input, prompt, size)
-		if lastErr == nil {
-			return result, nil
-		}
-
-		if !isRetryable(lastErr) {
-			return nil, lastErr
-		}
-	}
-
-	return nil, fmt.Errorf("image edit failed after %d retries: %w", c.maxRetries, lastErr)
-}
-
 func (c *Client) doGenerate(ctx context.Context, body generateRequest) (*ImageResult, error) {
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -201,38 +140,142 @@ func (c *Client) doGenerate(ctx context.Context, body generateRequest) (*ImageRe
 	return c.parseImageResponse(respBody)
 }
 
-func (c *Client) doEdit(ctx context.Context, input image.Image, prompt, size string) (*ImageResult, error) {
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
+func (c *Client) Generate(ctx context.Context, prompt, size string, references ...image.Image) (*ImageResult, error) {
+	body := generateRequest{
+		Model:    c.model,
+		Prompt:   prompt,
+		N:        1,
+		Quality:  c.quality,
+		Size:     size,
+		Thinking: c.thinking,
+	}
 
-	if err := writer.WriteField("model", c.model); err != nil {
-		return nil, fmt.Errorf("writing model field: %w", err)
-	}
-	if err := writer.WriteField("prompt", prompt); err != nil {
-		return nil, fmt.Errorf("writing prompt field: %w", err)
-	}
-	if err := writer.WriteField("n", "1"); err != nil {
-		return nil, fmt.Errorf("writing n field: %w", err)
-	}
-	if err := writer.WriteField("size", size); err != nil {
-		return nil, fmt.Errorf("writing size field: %w", err)
-	}
-	if err := writer.WriteField("quality", c.quality); err != nil {
-		return nil, fmt.Errorf("writing quality field: %w", err)
-	}
-	if c.thinking != "" {
-		if err := writer.WriteField("thinking", c.thinking); err != nil {
-			return nil, fmt.Errorf("writing thinking field: %w", err)
+	var result *ImageResult
+	var lastErr error
+
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(c.backoffDuration(attempt)):
+			}
+		}
+
+		if len(references) > 0 {
+			result, lastErr = c.doGenerateMultipart(ctx, prompt, size, references)
+		} else {
+			result, lastErr = c.doGenerate(ctx, body)
+		}
+		if lastErr == nil {
+			return result, nil
+		}
+
+		if !isRetryable(lastErr) {
+			return nil, lastErr
 		}
 	}
 
-	part, err := writer.CreateFormFile("image", "reference.png")
-	if err != nil {
-		return nil, fmt.Errorf("creating form file: %w", err)
+	return nil, fmt.Errorf("image generation failed after %d retries: %w", c.maxRetries, lastErr)
+}
+
+func (c *Client) Edit(ctx context.Context, input image.Image, prompt, size string, additionalRefs ...image.Image) (*ImageResult, error) {
+	var result *ImageResult
+	var lastErr error
+
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(c.backoffDuration(attempt)):
+			}
+		}
+
+		result, lastErr = c.doEdit(ctx, input, prompt, size, additionalRefs...)
+		if lastErr == nil {
+			return result, nil
+		}
+
+		if !isRetryable(lastErr) {
+			return nil, lastErr
+		}
 	}
 
-	if err := png.Encode(part, input); err != nil {
-		return nil, fmt.Errorf("encoding image: %w", err)
+	return nil, fmt.Errorf("image edit failed after %d retries: %w", c.maxRetries, lastErr)
+}
+
+func (c *Client) doGenerateMultipart(ctx context.Context, prompt, size string, references []image.Image) (*ImageResult, error) {
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	writeField(writer, "model", c.model)
+	writeField(writer, "prompt", prompt)
+	writeField(writer, "n", "1")
+	writeField(writer, "size", size)
+	writeField(writer, "quality", c.quality)
+	if c.thinking != "" {
+		writeField(writer, "thinking", c.thinking)
+	}
+
+	for _, ref := range references {
+		if err := writeImageField(writer, "image", "ref.png", ref); err != nil {
+			return nil, fmt.Errorf("writing reference image: %w", err)
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("closing multipart: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/images/generations", &buf)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, parseAPIError(resp.StatusCode, respBody)
+	}
+
+	return c.parseImageResponse(respBody)
+}
+
+func (c *Client) doEdit(ctx context.Context, input image.Image, prompt, size string, additionalRefs ...image.Image) (*ImageResult, error) {
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	writeField(writer, "model", c.model)
+	writeField(writer, "prompt", prompt)
+	writeField(writer, "n", "1")
+	writeField(writer, "size", size)
+	writeField(writer, "quality", c.quality)
+	if c.thinking != "" {
+		writeField(writer, "thinking", c.thinking)
+	}
+
+	if err := writeImageField(writer, "image", "input.png", input); err != nil {
+		return nil, fmt.Errorf("writing input image: %w", err)
+	}
+
+	for i, ref := range additionalRefs {
+		filename := fmt.Sprintf("ref_%d.png", i+1)
+		if err := writeImageField(writer, "image", filename, ref); err != nil {
+			return nil, fmt.Errorf("writing additional reference image %d: %w", i+1, err)
+		}
 	}
 
 	if err := writer.Close(); err != nil {
@@ -263,6 +306,18 @@ func (c *Client) doEdit(ctx context.Context, input image.Image, prompt, size str
 	}
 
 	return c.parseImageResponse(respBody)
+}
+
+func writeField(w *multipart.Writer, name, value string) {
+	w.WriteField(name, value)
+}
+
+func writeImageField(w *multipart.Writer, fieldName, filename string, img image.Image) error {
+	part, err := w.CreateFormFile(fieldName, filename)
+	if err != nil {
+		return err
+	}
+	return png.Encode(part, img)
 }
 
 func (c *Client) parseImageResponse(body []byte) (*ImageResult, error) {

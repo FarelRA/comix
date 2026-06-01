@@ -806,7 +806,7 @@ func TestBuildSceneCharacterRefs(t *testing.T) {
 	scene := model.Scene{
 		CharactersPresent: []string{"alice"},
 	}
-	refs := p.buildSceneCharacterRefs(scene, charIndex)
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 0)
 	if !strings.Contains(refs, "Alice") {
 		t.Error("expected character name in refs")
 	}
@@ -818,7 +818,7 @@ func TestBuildSceneCharacterRefs(t *testing.T) {
 func TestBuildSceneCharacterRefs_NoCharacters(t *testing.T) {
 	p := &Pipeline{}
 	scene := model.Scene{}
-	refs := p.buildSceneCharacterRefs(scene, map[string]model.Character{})
+	refs := p.buildSceneCharacterRefs(scene, map[string]model.Character{}, 0)
 	if refs != "No characters in this scene." {
 		t.Errorf("expected 'No characters' message, got %q", refs)
 	}
@@ -830,7 +830,7 @@ func TestBuildSceneCharacterRefs_MissingCharacter(t *testing.T) {
 	scene := model.Scene{
 		CharactersPresent: []string{"alice"},
 	}
-	refs := p.buildSceneCharacterRefs(scene, charIndex)
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 0)
 	if !strings.Contains(refs, "character reference not found") {
 		t.Error("expected missing character warning")
 	}
@@ -845,9 +845,64 @@ func TestBuildSceneCharacterRefs_WithDialogue(t *testing.T) {
 		CharactersPresent: []string{"alice"},
 		Dialogue:          []model.DialogueLine{{Speaker: "alice", Text: "Hello!"}},
 	}
-	refs := p.buildSceneCharacterRefs(scene, charIndex)
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 0)
 	if !strings.Contains(refs, "Hello!") {
 		t.Error("expected dialogue in refs")
+	}
+}
+
+func TestBuildSceneCharacterRefs_WithImageStartIdx(t *testing.T) {
+	p := &Pipeline{}
+	charIndex := map[string]model.Character{
+		"alice":        {ID: "alice", Name: "Alice", PhysicalDescription: "young girl"},
+		"white_rabbit": {ID: "white_rabbit", Name: "White Rabbit", PhysicalDescription: "white rabbit with waistcoat"},
+	}
+
+	scene := model.Scene{
+		CharactersPresent: []string{"alice", "white_rabbit"},
+		Dialogue:          []model.DialogueLine{{Speaker: "alice", Text: "Oh dear!"}},
+	}
+
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 1)
+
+	if !strings.Contains(refs, "[image 1, image 2]") {
+		t.Error("expected alice to have [image 1, image 2] (2 refs since <=7 chars)")
+	}
+	if !strings.Contains(refs, "[image 3, image 4]") {
+		t.Error("expected white_rabbit to have [image 3, image 4]")
+	}
+	if !strings.Contains(refs, "\"Oh dear!\"") {
+		t.Error("expected dialogue in refs")
+	}
+}
+
+func TestBuildSceneCharacterRefs_WithImageStartIdxManyChars(t *testing.T) {
+	p := &Pipeline{}
+	charIndex := map[string]model.Character{
+		"alice":    {ID: "alice", Name: "Alice", PhysicalDescription: "young girl"},
+		"hatter":   {ID: "hatter", Name: "Mad Hatter", PhysicalDescription: "eccentric man"},
+		"rabbit":   {ID: "rabbit", Name: "White Rabbit", PhysicalDescription: "white rabbit"},
+		"cat":      {ID: "cat", Name: "Cheshire Cat", PhysicalDescription: "striped cat"},
+		"queen":    {ID: "queen", Name: "Queen of Hearts", PhysicalDescription: "imperious woman"},
+		"king":     {ID: "king", Name: "King of Hearts", PhysicalDescription: "nervous man"},
+		"march":    {ID: "march", Name: "March Hare", PhysicalDescription: "frantic hare"},
+		"dormouse": {ID: "dormouse", Name: "Dormouse", PhysicalDescription: "sleepy mouse"},
+	}
+
+	scene := model.Scene{
+		CharactersPresent: []string{"alice", "hatter", "rabbit", "cat", "queen", "king", "march", "dormouse"},
+	}
+
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 2)
+
+	if !strings.Contains(refs, "[image 2]") {
+		t.Error("expected alice (first of 8 chars) to have [image 2] since offset=2 (>7 chars = 1 image each)")
+	}
+	if !strings.Contains(refs, "[image 9]") {
+		t.Error("expected dormouse (last of 8 chars) to have [image 9] (2+8-1)")
+	}
+	if strings.Contains(refs, "[image 2, image") {
+		t.Error("expected single image tags since >7 chars")
 	}
 }
 
