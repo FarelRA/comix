@@ -12,16 +12,14 @@ type SceneList struct {
 }
 
 type Scene struct {
-	ID                string         `json:"id" yaml:"id"`
 	Chapter           string         `json:"chapter" yaml:"chapter"`
-	ChapterSequence   int            `json:"chapter_sequence" yaml:"chapter_sequence"`
+	Sequence          int            `json:"sequence" yaml:"sequence"`
 	GlobalSequence    int            `json:"global_sequence" yaml:"global_sequence"`
 	Description       string         `json:"description" yaml:"description"`
 	CharactersPresent []string       `json:"characters_present" yaml:"characters_present"`
 	Location          string         `json:"location" yaml:"location"`
 	Mood              string         `json:"mood" yaml:"mood"`
 	VisualCues        []string       `json:"visual_cues" yaml:"visual_cues"`
-	PanelCount        int            `json:"panel_count" yaml:"panel_count"`
 	Dialogue          []DialogueLine `json:"dialogue,omitempty" yaml:"dialogue,omitempty"`
 }
 
@@ -39,7 +37,7 @@ func (sl *SceneList) Validate() error {
 	}
 	for i, s := range sl.Scenes {
 		if err := s.Validate(); err != nil {
-			return fmt.Errorf("scene list: scene[%d] (%s): %w", i, s.ID, err)
+			return fmt.Errorf("scene list: scene[%d] (%s): %w", i, s.Key(), err)
 		}
 	}
 	return nil
@@ -48,23 +46,17 @@ func (sl *SceneList) Validate() error {
 func (s *Scene) Validate() error {
 	var errs []string
 
-	if s.ID == "" {
-		errs = append(errs, "id is required")
-	}
 	if s.Chapter == "" {
 		errs = append(errs, "chapter is required")
 	}
-	if s.ChapterSequence < 1 {
-		errs = append(errs, "chapter_sequence must be >= 1")
+	if s.Sequence < 1 {
+		errs = append(errs, "sequence must be >= 1")
 	}
 	if s.GlobalSequence < 1 {
 		errs = append(errs, "global_sequence must be >= 1")
 	}
 	if s.Description == "" {
 		errs = append(errs, "description is required")
-	}
-	if s.PanelCount < 1 {
-		s.PanelCount = 1
 	}
 	for i, d := range s.Dialogue {
 		if d.Speaker == "" {
@@ -76,9 +68,16 @@ func (s *Scene) Validate() error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("scene %q: %s", s.ID, strings.Join(errs, "; "))
+		return fmt.Errorf("scene %q: %s", s.Key(), strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func (s Scene) Key() string {
+	if s.Chapter == "" || s.Sequence < 1 {
+		return "unknown"
+	}
+	return fmt.Sprintf("%s_%03d", s.Chapter, s.Sequence)
 }
 
 func (s *Scene) HasCharacter(characterID string) bool {

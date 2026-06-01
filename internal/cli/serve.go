@@ -19,13 +19,9 @@ var (
 		Short: "Start the HTTP server",
 		Long:  `Start the Comix HTTP server for web-based project management and pipeline execution.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := loadConfig()
+			cfg, err := loadConfigForOpenAI()
 			if err != nil {
 				return fmt.Errorf("loading config: %w", err)
-			}
-
-			if cfg.OpenAI.APIKey == "" {
-				return fmt.Errorf("OPENAI_API_KEY is not set. Set it via export OPENAI_API_KEY=sk-... or in config.yaml")
 			}
 
 			if serverPort > 0 {

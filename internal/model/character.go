@@ -6,14 +6,11 @@ import (
 )
 
 type CharacterNote struct {
-	Schema             string      `json:"$schema" yaml:"$schema"`
-	Characters         []Character `json:"characters" yaml:"characters"`
-	Version            int         `json:"version" yaml:"version"`
-	LastUpdatedChapter string      `json:"last_updated_chapter" yaml:"last_updated_chapter"`
+	Schema     string      `json:"$schema" yaml:"$schema"`
+	Characters []Character `json:"characters" yaml:"characters"`
 }
 
 type Character struct {
-	ID                  string            `json:"id" yaml:"id"`
 	Name                string            `json:"name" yaml:"name"`
 	PhysicalDescription string            `json:"physical_description" yaml:"physical_description"`
 	PersonalityTraits   []string          `json:"personality_traits" yaml:"personality_traits"`
@@ -28,15 +25,9 @@ func (cn *CharacterNote) Validate() error {
 	if cn.Schema == "" {
 		return fmt.Errorf("character note: $schema is required")
 	}
-	if cn.Version < 1 {
-		return fmt.Errorf("character note: version must be >= 1, got %d", cn.Version)
-	}
-	if cn.LastUpdatedChapter == "" && len(cn.Characters) > 0 {
-		return fmt.Errorf("character note: last_updated_chapter is required when characters are present")
-	}
 	for i, c := range cn.Characters {
 		if err := c.Validate(); err != nil {
-			return fmt.Errorf("character note: character[%d] (%s): %w", i, c.ID, err)
+			return fmt.Errorf("character note: character[%d] (%s): %w", i, c.Name, err)
 		}
 	}
 	return nil
@@ -45,9 +36,6 @@ func (cn *CharacterNote) Validate() error {
 func (c *Character) Validate() error {
 	var errs []string
 
-	if c.ID == "" {
-		errs = append(errs, "id is required")
-	}
 	if c.Name == "" {
 		errs = append(errs, "name is required")
 	}
@@ -62,7 +50,7 @@ func (c *Character) Validate() error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("character %q: %s", c.ID, strings.Join(errs, "; "))
+		return fmt.Errorf("character %q: %s", c.Name, strings.Join(errs, "; "))
 	}
 	return nil
 }

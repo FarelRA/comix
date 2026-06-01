@@ -55,13 +55,9 @@ gpt-image-2 image-to-image editing, using the 3x2 base sheet as reference.`,
 }
 
 func runGeneratePhase(cmd *cobra.Command, project, phase string) error {
-	cfg, err := loadConfig()
+	cfg, err := loadConfigForOpenAI()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
-	}
-
-	if cfg.OpenAI.APIKey == "" {
-		return fmt.Errorf("OPENAI_API_KEY is not set. Set it via export OPENAI_API_KEY=sk-... or in config.yaml")
 	}
 
 	llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).

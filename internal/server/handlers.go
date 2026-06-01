@@ -378,11 +378,18 @@ func (s *Server) handleGetStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, running := s.tasks.Load(id)
+	var task *taskSnapshot
+	if value, ok := s.tasks.Load(id); ok {
+		if current, ok := value.(*taskState); ok {
+			task = current.snapshot()
+		}
+	}
 
 	writeJSON(w, r, http.StatusOK, map[string]interface{}{
 		"project":  manifest.Project,
 		"pipeline": manifest.Pipeline,
 		"running":  running,
+		"task":     task,
 	})
 }
 
@@ -403,7 +410,8 @@ func (s *Server) handleRunPipeline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	if _, loaded := s.tasks.LoadOrStore(id, cancel); loaded {
+	task := &taskState{Cancel: cancel, ProjectID: id, Phase: "all", Status: "running", StartedAt: time.Now().UTC()}
+	if _, loaded := s.tasks.LoadOrStore(id, task); loaded {
 		cancel()
 		writeError(w, r, http.StatusConflict, "ALREADY_RUNNING", fmt.Sprintf("A pipeline is already running for project %q", id), nil)
 		return
@@ -417,12 +425,14 @@ func (s *Server) handleRunPipeline(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer func() {
+			task.finish()
 			s.tasks.Delete(id)
 			cancel()
 		}()
 
 		source := pipeline.IngestSource{}
 		if err := s.pipeline.Run(ctx, id, source, nil, true); err != nil {
+			task.fail(err)
 			slog.Error("pipeline run failed", "project", id, "error", err)
 		}
 	}()
@@ -460,7 +470,8 @@ func (s *Server) handleRunPhase(w http.ResponseWriter, r *http.Request) {
 
 	taskKey := id
 	ctx, cancel := context.WithCancel(context.Background())
-	if _, loaded := s.tasks.LoadOrStore(taskKey, cancel); loaded {
+	task := &taskState{Cancel: cancel, ProjectID: id, Phase: phase, Status: "running", StartedAt: time.Now().UTC()}
+	if _, loaded := s.tasks.LoadOrStore(taskKey, task); loaded {
 		cancel()
 		writeError(w, r, http.StatusConflict, "ALREADY_RUNNING", fmt.Sprintf("Phase %q is already running for project %q", phase, id), nil)
 		return
@@ -475,12 +486,14 @@ func (s *Server) handleRunPhase(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer func() {
+			task.finish()
 			s.tasks.Delete(taskKey)
 			cancel()
 		}()
 
 		source := pipeline.IngestSource{}
 		if err := s.pipeline.Run(ctx, id, source, []string{phase}, true); err != nil {
+			task.fail(err)
 			slog.Error("phase run failed", "phase", phase, "project", id, "error", err)
 		}
 	}()

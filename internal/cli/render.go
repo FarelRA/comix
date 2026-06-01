@@ -30,13 +30,9 @@ var renderCmd = &cobra.Command{
 from text, and each subsequent scene uses the previous panel as reference to
 maintain visual continuity. Results are saved to panels/*.png.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := loadConfig()
+		cfg, err := loadConfigForOpenAI()
 		if err != nil {
 			return fmt.Errorf("loading config: %w", err)
-		}
-
-		if cfg.OpenAI.APIKey == "" {
-			return fmt.Errorf("OPENAI_API_KEY is not set. Set it via export OPENAI_API_KEY=sk-... or in config.yaml")
 		}
 
 		llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).

@@ -12,12 +12,9 @@ func TestSaveAndLoadCharacterNote(t *testing.T) {
 	dir := t.TempDir()
 
 	note := &model.CharacterNote{
-		Schema:             "comix/character-note/v1",
-		Version:            1,
-		LastUpdatedChapter: "chapter_01",
+		Schema: "comix/character-note/v1",
 		Characters: []model.Character{
 			{
-				ID:                  "alice",
 				Name:                "Alice",
 				PhysicalDescription: "Young girl",
 				FirstChapter:        "chapter_01",
@@ -41,8 +38,8 @@ func TestSaveAndLoadCharacterNote(t *testing.T) {
 	if len(loaded.Characters) != 1 {
 		t.Fatalf("expected 1 character, got %d", len(loaded.Characters))
 	}
-	if loaded.Characters[0].ID != "alice" {
-		t.Errorf("character id: got %q, want %q", loaded.Characters[0].ID, "alice")
+	if loaded.Characters[0].Name != "Alice" {
+		t.Errorf("character name: got %q, want %q", loaded.Characters[0].Name, "Alice")
 	}
 }
 
@@ -54,9 +51,8 @@ func TestSaveAndLoadSceneList(t *testing.T) {
 		ProjectID: "test-proj",
 		Scenes: []model.Scene{
 			{
-				ID:                "scene_001",
 				Chapter:           "chapter_01",
-				ChapterSequence:   1,
+				Sequence:          1,
 				GlobalSequence:    1,
 				Description:       "Test scene",
 				CharactersPresent: []string{"alice"},
@@ -76,8 +72,8 @@ func TestSaveAndLoadSceneList(t *testing.T) {
 	if len(loaded.Scenes) != 1 {
 		t.Fatalf("expected 1 scene, got %d", len(loaded.Scenes))
 	}
-	if loaded.Scenes[0].ID != "scene_001" {
-		t.Errorf("scene id: got %q, want %q", loaded.Scenes[0].ID, "scene_001")
+	if loaded.Scenes[0].Sequence != 1 {
+		t.Errorf("scene sequence: got %d, want 1", loaded.Scenes[0].Sequence)
 	}
 }
 

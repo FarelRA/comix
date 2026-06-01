@@ -40,10 +40,6 @@ This is Phase 1 of the Comix pipeline. After ingestion, the project is ready for
 			return fmt.Errorf("loading config: %w", err)
 		}
 
-		if cfg.OpenAI.APIKey == "" {
-			return fmt.Errorf("OPENAI_API_KEY is not set. Set it via export OPENAI_API_KEY=sk-... or in config.yaml")
-		}
-
 		source := pipeline.IngestSource{
 			BookDir:  ingestBookDir,
 			Cover:    ingestCoverFile,
