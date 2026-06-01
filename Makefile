@@ -6,7 +6,7 @@ VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 .PHONY: build run test clean lint tidy fmt help release cross-build install
 
 build:
-	$(GO) build -o $(BINARY) -ldflags="-s -w -X github.com/comix/comix/internal/cli.version=$(VERSION)" ./cmd/$(BINARY)
+	$(GO) build -o build/$(BINARY) -ldflags="-s -w -X github.com/comix/comix/internal/cli.version=$(VERSION)" ./cmd/$(BINARY)
 
 run: build
 	./$(BINARY)
