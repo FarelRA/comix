@@ -89,36 +89,10 @@ func TestGenerateWithReferencesUsesEditAPI(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient("test-key", "gpt-image-2", "medium").WithBaseURL(server.URL).WithHTTPClient(server.Client())
-	_, err := client.Generate(context.Background(), "with refs", "2048x2048", createTestPNG(), createTestPNG())
+	_, err := client.GenerateWithReferences(context.Background(), "with refs", "2048x2048", createTestPNG(), createTestPNG())
 	if err != nil {
-		t.Fatalf("Generate with refs failed: %v", err)
+		t.Fatalf("GenerateWithReferences failed: %v", err)
 	}
-}
-
-func TestEditSuccess(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/images/edits" {
-			t.Errorf("expected /images/edits, got %s", r.URL.Path)
-		}
-		if err := r.ParseMultipartForm(32 << 20); err != nil {
-			t.Fatalf("parsing multipart form: %v", err)
-		}
-		if r.FormValue("prompt") != "edit prompt" || r.FormValue("size") != "2048x2048" {
-			t.Errorf("unexpected form: %#v", r.Form)
-		}
-		if files := multipartFileCount(r.MultipartForm.File); files != 1 {
-			t.Errorf("expected 1 image file, got %d", files)
-		}
-		writeImageResponse(t, w, pngBase64(t), "")
-	}))
-	defer server.Close()
-
-	client := NewClient("test-key", "gpt-image-2", "medium").WithBaseURL(server.URL).WithHTTPClient(server.Client())
-	result, err := client.Edit(context.Background(), createTestPNG(), "edit prompt", "2048x2048")
-	if err != nil {
-		t.Fatalf("Edit failed: %v", err)
-	}
-	assertImage10x10(t, result.Image)
 }
 
 func TestGenerateOpenAIError(t *testing.T) {
@@ -184,9 +158,7 @@ func writeImageResponse(t *testing.T, w http.ResponseWriter, b64, revised string
 }
 
 func imageResponseWithURL(url string) *openai.ImagesResponse {
-	return &openai.ImagesResponse{
-		Data: []openai.Image{{URL: url}},
-	}
+	return &openai.ImagesResponse{Data: []openai.Image{{URL: url}}}
 }
 
 func assertImage10x10(t *testing.T, img image.Image) {

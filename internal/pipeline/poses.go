@@ -43,7 +43,7 @@ func (p *Pipeline) GeneratePoses(ctx context.Context, manifest *model.ProjectMan
 			}
 
 			prompt := imagegen.PromptPoseSheet(char.Name)
-			result, err := p.imgGen.Edit(ctx, sheetImage, prompt, p.cfg.OpenAI.Image.Size.Poses)
+			result, err := p.imgGen.GenerateWithReferences(ctx, prompt, p.cfg.OpenAI.Image.Size.Poses, sheetImage)
 			if err != nil {
 				errs <- fmt.Sprintf("generating poses for %q: %v", char.Name, err)
 				return err

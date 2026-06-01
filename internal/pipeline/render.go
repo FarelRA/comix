@@ -85,7 +85,8 @@ func (p *Pipeline) RenderScenes(ctx context.Context, manifest *model.ProjectMani
 			} else {
 				prompt += "\n\nReference image 1 is the previous panel. Maintain visual continuity."
 			}
-			result, err = p.imgGen.Edit(ctx, prevPanel, prompt, p.cfg.OpenAI.Image.Size.Panel, charImages...)
+			refs := append([]image.Image{prevPanel}, charImages...)
+			result, err = p.imgGen.GenerateWithReferences(ctx, prompt, p.cfg.OpenAI.Image.Size.Panel, refs...)
 		}
 
 		if err != nil {
