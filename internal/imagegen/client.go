@@ -11,7 +11,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -37,7 +36,6 @@ type Client struct {
 	maxRetries int
 	retryDelay time.Duration
 	baseURL    string
-	limiter    *rateLimiter
 }
 
 type generateRequest struct {
@@ -88,8 +86,7 @@ func NewClient(apiKey, model, quality, size, thinking string) *Client {
 		httpClient: &http.Client{Timeout: 120 * time.Second},
 		maxRetries: 5,
 		retryDelay: 2 * time.Second,
-		baseURL:    "https://api.openai.com/v1",
-		limiter:    newRateLimiter(5),
+		baseURL: "https://api.openai.com/v1",
 	}
 }
 
@@ -110,11 +107,6 @@ func (c *Client) WithRetryDelay(d time.Duration) *Client {
 
 func (c *Client) WithBaseURL(url string) *Client {
 	c.baseURL = url
-	return c
-}
-
-func (c *Client) WithRateLimit(rpm int) *Client {
-	c.limiter = newRateLimiter(rpm)
 	return c
 }
 
@@ -139,8 +131,6 @@ func (c *Client) Generate(ctx context.Context, prompt string) (*ImageResult, err
 			case <-time.After(c.backoffDuration(attempt)):
 			}
 		}
-
-		c.limiter.Wait(ctx)
 
 		result, lastErr = c.doGenerate(ctx, body)
 		if lastErr == nil {
@@ -167,8 +157,6 @@ func (c *Client) Edit(ctx context.Context, input image.Image, prompt string) (*I
 			case <-time.After(c.backoffDuration(attempt)):
 			}
 		}
-
-		c.limiter.Wait(ctx)
 
 		result, lastErr = c.doEdit(ctx, input, prompt)
 		if lastErr == nil {
@@ -357,45 +345,4 @@ func isRetryable(err error) bool {
 	return false
 }
 
-type rateLimiter struct {
-	mu       sync.Mutex
-	interval time.Duration
-	lastReq  time.Time
-}
 
-func newRateLimiter(rpm int) *rateLimiter {
-	interval := time.Duration(0)
-	if rpm > 0 {
-		interval = time.Minute / time.Duration(rpm)
-	}
-	return &rateLimiter{interval: interval}
-}
-
-func (rl *rateLimiter) Wait(ctx context.Context) {
-	if rl.interval == 0 {
-		return
-	}
-
-	rl.mu.Lock()
-	if rl.lastReq.IsZero() {
-		rl.lastReq = time.Now()
-		rl.mu.Unlock()
-		return
-	}
-
-	elapsed := time.Since(rl.lastReq)
-	rl.mu.Unlock()
-
-	if elapsed < rl.interval {
-		wait := rl.interval - elapsed
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(wait):
-		}
-	}
-
-	rl.mu.Lock()
-	rl.lastReq = time.Now()
-	rl.mu.Unlock()
-}

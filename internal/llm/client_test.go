@@ -43,7 +43,7 @@ func TestChat_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client())
 
@@ -83,7 +83,7 @@ func TestChat_RetryOn429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(5).
@@ -120,7 +120,7 @@ func TestChat_RetryOn500(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(3).
@@ -147,7 +147,7 @@ func TestChat_ExhaustRetries(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(2).
@@ -172,7 +172,7 @@ func TestChat_NonRetryable400(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(3).
@@ -204,7 +204,7 @@ func TestChat_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client())
 
@@ -228,7 +228,7 @@ func TestChat_InvalidJSONResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client())
 
@@ -246,7 +246,7 @@ func TestChat_EmptyChoices(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client())
 
@@ -268,7 +268,7 @@ func TestChatRaw_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client())
 
@@ -308,7 +308,7 @@ func TestChat_RetryOn503(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-4o").
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(3).
@@ -351,7 +351,7 @@ func TestSystemPromptExtractScenes(t *testing.T) {
 }
 
 func TestBackoffDuration(t *testing.T) {
-	client := NewClient("test-key", "gpt-4o").WithRetryDelay(time.Second)
+	client := NewClient("test-key", "gpt-5.4-mini", "medium").WithRetryDelay(time.Second)
 
 	tests := []struct {
 		attempt  int

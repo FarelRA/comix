@@ -67,8 +67,8 @@ func TestGenerate_Success(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	result, err := client.Generate(context.Background(), "test prompt")
 	if err != nil {
@@ -108,8 +108,8 @@ func TestGenerate_FromURL(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	result, err := client.Generate(context.Background(), "test prompt")
 	if err != nil {
@@ -143,8 +143,8 @@ func TestGenerate_RetryOn429(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(5).
-		WithRetryDelay(time.Millisecond).
-		WithRateLimit(0)
+		WithRetryDelay(time.Millisecond)
+
 
 	_, err := client.Generate(context.Background(), "test")
 	if err != nil {
@@ -169,8 +169,8 @@ func TestGenerate_NonRetryable400(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(3).
-		WithRetryDelay(time.Millisecond).
-		WithRateLimit(0)
+		WithRetryDelay(time.Millisecond)
+
 
 	_, err := client.Generate(context.Background(), "test")
 	if err == nil {
@@ -234,8 +234,8 @@ func TestEdit_Success(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	input := createTestPNG()
 	result, err := client.Edit(context.Background(), input, "edit prompt")
@@ -260,8 +260,8 @@ func TestParseImageResponse_FromURL(t *testing.T) {
 
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithHTTPClient(imgServer.Client()).
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	result, err := client.parseImageResponse([]byte(`{"data":[{"url":"` + imgServer.URL + `"}]}`))
 	if err != nil {
@@ -274,8 +274,8 @@ func TestParseImageResponse_FromURL(t *testing.T) {
 
 func TestParseImageResponse_NoB64OrURL(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	_, err := client.parseImageResponse([]byte(`{"data":[{}]}`))
 	if err == nil {
@@ -321,8 +321,8 @@ func TestParseAPIError_NonJSONBody(t *testing.T) {
 
 func TestParseImageResponse_InvalidJSON(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	_, err := client.parseImageResponse([]byte(`not json`))
 	if err == nil {
@@ -332,8 +332,8 @@ func TestParseImageResponse_InvalidJSON(t *testing.T) {
 
 func TestParseImageResponse_InvalidBase64(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	_, err := client.parseImageResponse([]byte(`{"data":[{"b64_json":"not-valid-base64!!!"}]}`))
 	if err == nil {
@@ -354,8 +354,8 @@ func TestEdit_ContextCancellation(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -379,8 +379,8 @@ func TestGenerate_ContextCancellation(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -401,8 +401,8 @@ func TestGenerate_EmptyData(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	_, err := client.Generate(context.Background(), "test")
 	if err == nil {
@@ -422,8 +422,8 @@ func TestGenerate_NoImageInData(t *testing.T) {
 	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
-		WithMaxRetries(0).
-		WithRateLimit(0)
+		WithMaxRetries(0)
+
 
 	_, err := client.Generate(context.Background(), "test")
 	if err == nil {
@@ -454,8 +454,8 @@ func TestEdit_RetryOn503(t *testing.T) {
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(3).
-		WithRetryDelay(time.Millisecond).
-		WithRateLimit(0)
+		WithRetryDelay(time.Millisecond)
+
 
 	input := createTestPNG()
 	_, err := client.Edit(context.Background(), input, "test")
@@ -489,49 +489,6 @@ func TestBackoffDuration(t *testing.T) {
 		if got != tt.expected {
 			t.Errorf("attempt %d: expected %v, got %v", tt.attempt, tt.expected, got)
 		}
-	}
-}
-
-func TestRateLimiter(t *testing.T) {
-	rl := newRateLimiter(60)
-
-	start := time.Now()
-	rl.Wait(context.Background())
-	rl.Wait(context.Background())
-	rl.Wait(context.Background())
-
-	elapsed := time.Since(start)
-	if elapsed < 1900*time.Millisecond {
-		t.Errorf("expected at least ~2s for 3 requests at 60 RPM, got %v", elapsed)
-	}
-}
-
-func TestRateLimiter_Disabled(t *testing.T) {
-	rl := newRateLimiter(0)
-
-	start := time.Now()
-	rl.Wait(context.Background())
-	rl.Wait(context.Background())
-	rl.Wait(context.Background())
-
-	elapsed := time.Since(start)
-	if elapsed > 100*time.Millisecond {
-		t.Errorf("expected near-instant for disabled rate limiter, got %v", elapsed)
-	}
-}
-
-func TestRateLimiter_ContextCancelled(t *testing.T) {
-	rl := newRateLimiter(1)
-
-	rl.Wait(context.Background())
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	start := time.Now()
-	rl.Wait(ctx)
-	if time.Since(start) > 100*time.Millisecond {
-		t.Errorf("expected quick return on cancelled context")
 	}
 }
 

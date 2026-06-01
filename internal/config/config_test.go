@@ -12,8 +12,9 @@ func validConfig() *Config {
 		OpenAI: OpenAIConfig{
 			APIKey: "sk-test-key-12345",
 			LLM: LLMConfig{
-				Model:          "gpt-4o",
+				Model:          "gpt-5.4-mini",
 				Temperature:    0.1,
+				Thinking:       "medium",
 				MaxRetries:     5,
 				RetryBaseDelay: time.Second,
 			},
@@ -24,7 +25,7 @@ func validConfig() *Config {
 				Thinking:       "medium",
 				MaxRetries:     5,
 				RetryBaseDelay: 2 * time.Second,
-				RateLimitRPM:   5,
+	
 			},
 		},
 		Pipeline: PipelineConfig{
@@ -100,6 +101,14 @@ func TestValidate_RetryBaseDelayZero(t *testing.T) {
 	}
 }
 
+func TestValidate_LLMThinkingInvalid(t *testing.T) {
+	cfg := validConfig()
+	cfg.OpenAI.LLM.Thinking = "extreme"
+	if err := cfg.Validate(); err == nil {
+		t.Error("expected error for invalid llm thinking")
+	}
+}
+
 func TestValidate_ImageQualityInvalid(t *testing.T) {
 	cfg := validConfig()
 	cfg.OpenAI.Image.Quality = "ultra"
@@ -129,14 +138,6 @@ func TestValidate_ImageRetryDelayZero(t *testing.T) {
 	cfg.OpenAI.Image.RetryBaseDelay = 0
 	if err := cfg.Validate(); err == nil {
 		t.Error("expected error for image retry_base_delay <= 0")
-	}
-}
-
-func TestValidate_RateLimitRPMZero(t *testing.T) {
-	cfg := validConfig()
-	cfg.OpenAI.Image.RateLimitRPM = 0
-	if err := cfg.Validate(); err == nil {
-		t.Error("expected error for rate_limit_rpm <= 0")
 	}
 }
 
@@ -238,7 +239,7 @@ func TestLoadConfig_WithFile(t *testing.T) {
 openai:
   api_key: "sk-from-file"
   llm:
-    model: "gpt-4o-mini"
+    model: "gpt-5.4-mini"
 pipeline:
   output_dir: "/tmp/test-output"
 `
@@ -254,8 +255,8 @@ pipeline:
 	if cfg.OpenAI.APIKey != "sk-from-file" {
 		t.Errorf("expected 'sk-from-file', got %q", cfg.OpenAI.APIKey)
 	}
-	if cfg.OpenAI.LLM.Model != "gpt-4o-mini" {
-		t.Errorf("expected 'gpt-4o-mini', got %q", cfg.OpenAI.LLM.Model)
+	if cfg.OpenAI.LLM.Model != "gpt-5.4-mini" {
+		t.Errorf("expected 'gpt-5.4-mini', got %q", cfg.OpenAI.LLM.Model)
 	}
 	if cfg.Pipeline.OutputDir != "/tmp/test-output" {
 		t.Errorf("expected '/tmp/test-output', got %q", cfg.Pipeline.OutputDir)
@@ -268,8 +269,8 @@ func TestLoadConfig_Defaults(t *testing.T) {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
 
-	if cfg.OpenAI.LLM.Model != "gpt-4o" {
-		t.Errorf("expected default model 'gpt-4o', got %q", cfg.OpenAI.LLM.Model)
+	if cfg.OpenAI.LLM.Model != "gpt-5.4-mini" {
+		t.Errorf("expected default model 'gpt-5.4-mini', got %q", cfg.OpenAI.LLM.Model)
 	}
 	if cfg.OpenAI.LLM.Temperature != 0.1 {
 		t.Errorf("expected default temperature 0.1, got %f", cfg.OpenAI.LLM.Temperature)

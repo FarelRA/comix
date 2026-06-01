@@ -26,6 +26,7 @@ type Message struct {
 type Client struct {
 	apiKey       string
 	model        string
+	thinking     string
 	httpClient   *http.Client
 	maxRetries   int
 	retryDelay   time.Duration
@@ -36,6 +37,7 @@ type chatRequest struct {
 	Model          string           `json:"model"`
 	Messages       []Message        `json:"messages"`
 	Temperature    float64          `json:"temperature"`
+	ReasoningEffort string          `json:"reasoning_effort,omitempty"`
 	ResponseFormat *responseFormat  `json:"response_format,omitempty"`
 }
 
@@ -82,10 +84,11 @@ type Result struct {
 	TotalTokens  int
 }
 
-func NewClient(apiKey, model string) *Client {
+func NewClient(apiKey, model, thinking string) *Client {
 	return &Client{
 		apiKey:     apiKey,
 		model:      model,
+		thinking:   thinking,
 		httpClient: &http.Client{Timeout: 120 * time.Second},
 		maxRetries: 5,
 		retryDelay: time.Second,
@@ -135,6 +138,7 @@ func (c *Client) chatWithRetry(ctx context.Context, messages []Message, temperat
 		Model:       c.model,
 		Messages:    messages,
 		Temperature: temperature,
+		ReasoningEffort: c.thinking,
 		ResponseFormat: &responseFormat{
 			Type: "json_object",
 		},

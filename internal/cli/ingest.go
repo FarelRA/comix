@@ -62,7 +62,8 @@ This is Phase 1 of the Comix pipeline. After ingestion, the project is ready for
 			return fmt.Errorf("--project is required when using --cover/--chapters")
 		}
 
-		llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model).
+		llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).
+			WithBaseURL(cfg.OpenAI.BaseURL).
 			WithMaxRetries(cfg.OpenAI.LLM.MaxRetries).
 			WithRetryDelay(cfg.OpenAI.LLM.RetryBaseDelay)
 
@@ -72,9 +73,9 @@ This is Phase 1 of the Comix pipeline. After ingestion, the project is ready for
 			cfg.OpenAI.Image.Quality,
 			cfg.OpenAI.Image.Size,
 			cfg.OpenAI.Image.Thinking,
-		).WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
-			WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay).
-			WithRateLimit(cfg.OpenAI.Image.RateLimitRPM)
+		).WithBaseURL(cfg.OpenAI.BaseURL).
+			WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
+			WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay)
 
 		p := pipeline.NewPipeline(cfg, llmClient, imgClient)
 

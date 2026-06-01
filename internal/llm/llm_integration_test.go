@@ -14,7 +14,7 @@ func TestIntegration_Chat(t *testing.T) {
 		t.Skip("OPENAI_API_KEY not set")
 	}
 
-	client := NewClient(apiKey, "gpt-4o")
+	client := NewClient(apiKey, "gpt-5.4-mini", "medium")
 
 	messages := []Message{
 		{Role: RoleSystem, Content: "Return a JSON object with a 'name' field set to 'Alice' and an 'age' field set to 7."},
@@ -43,7 +43,7 @@ func TestIntegration_CharacterExtractionPrompt(t *testing.T) {
 		t.Skip("OPENAI_API_KEY not set")
 	}
 
-	client := NewClient(apiKey, "gpt-4o")
+	client := NewClient(apiKey, "gpt-5.4-mini", "medium")
 
 	messages := []Message{
 		{Role: RoleSystem, Content: SystemPromptExtractCharacters()},
@@ -66,7 +66,7 @@ func TestIntegration_SceneExtractionPrompt(t *testing.T) {
 		t.Skip("OPENAI_API_KEY not set")
 	}
 
-	client := NewClient(apiKey, "gpt-4o")
+	client := NewClient(apiKey, "gpt-5.4-mini", "medium")
 
 	messages := []Message{
 		{Role: RoleSystem, Content: SystemPromptExtractScenes()},

@@ -18,14 +18,16 @@ type Config struct {
 }
 
 type OpenAIConfig struct {
-	APIKey string     `mapstructure:"api_key"`
-	LLM    LLMConfig  `mapstructure:"llm"`
-	Image  ImageConfig `mapstructure:"image"`
+	APIKey  string      `mapstructure:"api_key"`
+	BaseURL string      `mapstructure:"base_url"`
+	LLM     LLMConfig   `mapstructure:"llm"`
+	Image   ImageConfig `mapstructure:"image"`
 }
 
 type LLMConfig struct {
 	Model          string        `mapstructure:"model"`
 	Temperature    float64       `mapstructure:"temperature"`
+	Thinking       string        `mapstructure:"thinking"`
 	MaxRetries     int           `mapstructure:"max_retries"`
 	RetryBaseDelay time.Duration `mapstructure:"retry_base_delay"`
 }
@@ -37,7 +39,6 @@ type ImageConfig struct {
 	Thinking       string        `mapstructure:"thinking"`
 	MaxRetries     int           `mapstructure:"max_retries"`
 	RetryBaseDelay time.Duration `mapstructure:"retry_base_delay"`
-	RateLimitRPM   int           `mapstructure:"rate_limit_rpm"`
 }
 
 type PipelineConfig struct {
@@ -109,6 +110,11 @@ func (c *Config) Validate() error {
 		errs = append(errs, "openai.llm.retry_base_delay must be > 0")
 	}
 
+	validLLMReasoning := map[string]bool{"none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true}
+	if !validLLMReasoning[c.OpenAI.LLM.Thinking] {
+		errs = append(errs, fmt.Sprintf("openai.llm.thinking must be one of: none, minimal, low, medium, high, xhigh (got %q)", c.OpenAI.LLM.Thinking))
+	}
+
 	validQualities := map[string]bool{"low": true, "medium": true, "high": true}
 	if !validQualities[c.OpenAI.Image.Quality] {
 		errs = append(errs, fmt.Sprintf("openai.image.quality must be one of: low, medium, high (got %q)", c.OpenAI.Image.Quality))
@@ -123,10 +129,6 @@ func (c *Config) Validate() error {
 	if c.OpenAI.Image.RetryBaseDelay <= 0 {
 		errs = append(errs, "openai.image.retry_base_delay must be > 0")
 	}
-	if c.OpenAI.Image.RateLimitRPM <= 0 {
-		errs = append(errs, "openai.image.rate_limit_rpm must be > 0")
-	}
-
 	if c.Pipeline.MaxConcurrentSheets < 1 {
 		errs = append(errs, "pipeline.max_concurrent_sheets must be >= 1")
 	}
@@ -168,8 +170,10 @@ func (c *Config) RemediateAPIKey() string {
 
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("openai.api_key", "")
-	v.SetDefault("openai.llm.model", "gpt-4o")
+	v.SetDefault("openai.base_url", "https://api.openai.com/v1")
+	v.SetDefault("openai.llm.model", "gpt-5.4-mini")
 	v.SetDefault("openai.llm.temperature", 0.1)
+	v.SetDefault("openai.llm.thinking", "medium")
 	v.SetDefault("openai.llm.max_retries", 5)
 	v.SetDefault("openai.llm.retry_base_delay", "1s")
 	v.SetDefault("openai.image.model", "gpt-image-2")
@@ -178,7 +182,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("openai.image.thinking", "medium")
 	v.SetDefault("openai.image.max_retries", 5)
 	v.SetDefault("openai.image.retry_base_delay", "2s")
-	v.SetDefault("openai.image.rate_limit_rpm", 5)
 	v.SetDefault("pipeline.output_dir", "./comix-output")
 	v.SetDefault("pipeline.chapter_pattern", "chapter_*.md")
 	v.SetDefault("pipeline.cover_filename", "cover.md")

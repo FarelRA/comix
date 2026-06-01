@@ -149,8 +149,7 @@ func TestGenerateSheets_Success(t *testing.T) {
 	mockSrv := newMockImageServer(t)
 	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(mockSrv.URL).
-		WithHTTPClient(mockSrv.Client()).
-		WithRateLimit(0)
+		WithHTTPClient(mockSrv.Client())
 
 	p := NewPipeline(cfg, nil, imgClient)
 
@@ -184,8 +183,7 @@ func TestGeneratePoses_Success(t *testing.T) {
 	mockSrv := newMockImageServer(t)
 	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(mockSrv.URL).
-		WithHTTPClient(mockSrv.Client()).
-		WithRateLimit(0)
+		WithHTTPClient(mockSrv.Client())
 
 	p := NewPipeline(cfg, nil, imgClient)
 
@@ -239,8 +237,7 @@ func TestRenderScenes_FirstSceneGenerate(t *testing.T) {
 	defer mockSrv.Close()
 	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(mockSrv.URL).
-		WithHTTPClient(mockSrv.Client()).
-		WithRateLimit(0)
+		WithHTTPClient(mockSrv.Client())
 
 	p := NewPipeline(testConfig(outputDir), nil, imgClient)
 
@@ -282,8 +279,7 @@ func TestRenderScenes_SequentialEdit(t *testing.T) {
 
 	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(mockSrv.URL).
-		WithHTTPClient(mockSrv.Client()).
-		WithRateLimit(0)
+		WithHTTPClient(mockSrv.Client())
 
 	p := NewPipeline(testConfig(outputDir), nil, imgClient)
 
@@ -313,8 +309,7 @@ func TestRenderScenes_ResumeSkipsExisting(t *testing.T) {
 
 	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(mockSrv.URL).
-		WithHTTPClient(mockSrv.Client()).
-		WithRateLimit(0)
+		WithHTTPClient(mockSrv.Client())
 
 	p := NewPipeline(testConfig(outputDir), nil, imgClient)
 
@@ -369,8 +364,7 @@ func TestPipelineRun_WithAllPhases(t *testing.T) {
 
 	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
 		WithBaseURL(mockSrv.URL).
-		WithHTTPClient(mockSrv.Client()).
-		WithRateLimit(0)
+		WithHTTPClient(mockSrv.Client())
 
 	p := NewPipeline(cfg, nil, imgClient)
 
@@ -426,6 +420,7 @@ func testConfig(outputDir string) *config.Config {
 	return &config.Config{
 		OpenAI: config.OpenAIConfig{
 			APIKey: "sk-test",
+			LLM: config.LLMConfig{},
 		},
 		Pipeline: config.PipelineConfig{
 			OutputDir:           outputDir,

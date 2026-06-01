@@ -35,7 +35,8 @@ var (
 				cfg.Server.Host = serverHost
 			}
 
-			llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model).
+			llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).
+				WithBaseURL(cfg.OpenAI.BaseURL).
 				WithMaxRetries(cfg.OpenAI.LLM.MaxRetries).
 				WithRetryDelay(cfg.OpenAI.LLM.RetryBaseDelay)
 
@@ -45,9 +46,9 @@ var (
 				cfg.OpenAI.Image.Quality,
 				cfg.OpenAI.Image.Size,
 				cfg.OpenAI.Image.Thinking,
-			).WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
-				WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay).
-				WithRateLimit(cfg.OpenAI.Image.RateLimitRPM)
+			).WithBaseURL(cfg.OpenAI.BaseURL).
+				WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
+				WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay)
 
 			p := pipeline.NewPipeline(cfg, llmClient, imgClient)
 			srv := server.NewServer(cfg, p)

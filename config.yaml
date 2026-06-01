@@ -1,9 +1,11 @@
 openai:
   api_key: "${OPENAI_API_KEY}"
+  base_url: "https://api.openai.com/v1"
 
   llm:
-    model: "gpt-4o"
+    model: "gpt-5.4-mini"
     temperature: 0.1
+    thinking: "medium"
     max_retries: 5
     retry_base_delay: 1s
 
@@ -14,7 +16,6 @@ openai:
     thinking: "medium"
     max_retries: 5
     retry_base_delay: 2s
-    rate_limit_rpm: 5
 
 pipeline:
   output_dir: "./comix-output"

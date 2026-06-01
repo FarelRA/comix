@@ -38,7 +38,8 @@ maintain visual continuity. Results are saved to panels/*.png.`,
 			return fmt.Errorf("OPENAI_API_KEY is not set. Set it via export OPENAI_API_KEY=sk-... or in config.yaml")
 		}
 
-		llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model).
+		llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).
+			WithBaseURL(cfg.OpenAI.BaseURL).
 			WithMaxRetries(cfg.OpenAI.LLM.MaxRetries).
 			WithRetryDelay(cfg.OpenAI.LLM.RetryBaseDelay)
 
@@ -48,9 +49,9 @@ maintain visual continuity. Results are saved to panels/*.png.`,
 			cfg.OpenAI.Image.Quality,
 			cfg.OpenAI.Image.Size,
 			cfg.OpenAI.Image.Thinking,
-		).WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
-			WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay).
-			WithRateLimit(cfg.OpenAI.Image.RateLimitRPM)
+		).WithBaseURL(cfg.OpenAI.BaseURL).
+			WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
+			WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay)
 
 		p := pipeline.NewPipeline(cfg, llmClient, imgClient)
 
