@@ -5,11 +5,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/storage"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/storage"
 )
 
 func LoadCharacterNote(root, project string) (*model.CharacterNote, error) {
+	if err := storage.ValidateName(project); err != nil {
+		return nil, err
+	}
 	note := &model.CharacterNote{}
 	if err := storage.LoadJSON(storage.CharactersPath(root, project), note); err != nil {
 		return nil, fmt.Errorf("loading character note: %w", err)
@@ -18,6 +21,9 @@ func LoadCharacterNote(root, project string) (*model.CharacterNote, error) {
 }
 
 func SaveCharacterNote(root, project string, note *model.CharacterNote) error {
+	if err := storage.ValidateName(project); err != nil {
+		return err
+	}
 	if err := storage.EnsureDir(storage.StateDir(root, project)); err != nil {
 		return fmt.Errorf("ensuring state dir: %w", err)
 	}
@@ -28,6 +34,9 @@ func SaveCharacterNote(root, project string, note *model.CharacterNote) error {
 }
 
 func LoadSceneList(root, project string) (*model.SceneList, error) {
+	if err := storage.ValidateName(project); err != nil {
+		return nil, err
+	}
 	scenes := &model.SceneList{}
 	if err := storage.LoadJSON(storage.ScenesPath(root, project), scenes); err != nil {
 		return nil, fmt.Errorf("loading scene list: %w", err)
@@ -36,6 +45,9 @@ func LoadSceneList(root, project string) (*model.SceneList, error) {
 }
 
 func SaveSceneList(root, project string, scenes *model.SceneList) error {
+	if err := storage.ValidateName(project); err != nil {
+		return err
+	}
 	if err := storage.EnsureDir(storage.StateDir(root, project)); err != nil {
 		return fmt.Errorf("ensuring state dir: %w", err)
 	}
@@ -46,6 +58,9 @@ func SaveSceneList(root, project string, scenes *model.SceneList) error {
 }
 
 func LoadManifest(root, project string) (*model.ProjectManifest, error) {
+	if err := storage.ValidateName(project); err != nil {
+		return nil, err
+	}
 	m := &model.ProjectManifest{}
 	if err := storage.LoadYAML(storage.ManifestPath(root, project), m); err != nil {
 		return nil, fmt.Errorf("loading manifest: %w", err)
@@ -54,6 +69,9 @@ func LoadManifest(root, project string) (*model.ProjectManifest, error) {
 }
 
 func SaveManifest(root, project string, m *model.ProjectManifest) error {
+	if err := storage.ValidateName(project); err != nil {
+		return err
+	}
 	if err := storage.EnsureDir(storage.ProjectDir(root, project)); err != nil {
 		return fmt.Errorf("ensuring project dir: %w", err)
 	}
@@ -64,6 +82,9 @@ func SaveManifest(root, project string, m *model.ProjectManifest) error {
 }
 
 func ManifestExists(root, project string) (bool, error) {
+	if err := storage.ValidateName(project); err != nil {
+		return false, err
+	}
 	_, err := os.Stat(storage.ManifestPath(root, project))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -117,19 +138,26 @@ func UpdateManifestPhase(root, project, phase string, status model.PhaseStatus) 
 	return SaveManifest(root, project, m)
 }
 
-func RecordPhaseError(root, project, phase string, err error) {
+func RecordPhaseError(root, project, phase string, err error) error {
 	m, loadErr := LoadManifest(root, project)
 	if loadErr != nil {
-		return
+		return loadErr
 	}
 
 	m.Pipeline.Errors = append(m.Pipeline.Errors, model.PhaseError{
-		Phase:      phase,
-		Timestamp:  time.Now().UTC(),
-		Message:    err.Error(),
+		Phase:       phase,
+		Timestamp:   time.Now().UTC(),
+		Message:     err.Error(),
 		Recoverable: false,
 	})
-	m.Pipeline.Phases[phase] = model.PhaseStatus{Status: model.PhaseFailed}
+	phaseStatus := m.Pipeline.Phases[phase]
+	phaseStatus.Status = model.PhaseFailed
+	phaseStatus.CompletedAt = nil
+	m.Pipeline.Phases[phase] = phaseStatus
+	m.Pipeline.Status = model.PhaseFailed
+	if num, ok := model.PhaseNumbers[phase]; ok {
+		m.Pipeline.CurrentPhase = num
+	}
 
-	_ = SaveManifest(root, project, m)
+	return SaveManifest(root, project, m)
 }

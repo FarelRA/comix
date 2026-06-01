@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
-	"github.com/comix/comix/internal/state"
+	"github.com/FarelRA/comix/internal/state"
 
 	"github.com/spf13/cobra"
 )

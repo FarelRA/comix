@@ -3,12 +3,13 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"path/filepath"
 
-	"github.com/comix/comix/internal/llm"
-	"github.com/comix/comix/internal/logger"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/state"
-	"github.com/comix/comix/internal/storage"
+	"github.com/FarelRA/comix/internal/llm"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/state"
+	"github.com/FarelRA/comix/internal/storage"
 )
 
 func (p *Pipeline) ExtractScenes(ctx context.Context, manifest *model.ProjectManifest, note *model.CharacterNote, resume bool) (*model.SceneList, error) {
@@ -21,7 +22,7 @@ func (p *Pipeline) ExtractScenes(ctx context.Context, manifest *model.ProjectMan
 		existing, err := state.LoadSceneList(outputDir, projectName)
 		if err == nil && existing != nil {
 			sceneList = existing
-			logger.Info("loaded existing scene list", "scenes", len(sceneList.Scenes))
+			slog.Info("loaded existing scene list", "scenes", len(sceneList.Scenes))
 		}
 	}
 
@@ -32,7 +33,10 @@ func (p *Pipeline) ExtractScenes(ctx context.Context, manifest *model.ProjectMan
 		}
 	}
 
-	coverContent := p.readRawFile(outputDir, projectName, p.cfg.Pipeline.CoverFilename)
+	coverContent, err := p.readRawFile(outputDir, projectName, p.cfg.Pipeline.CoverFilename)
+	if err != nil {
+		return nil, err
+	}
 
 	processedChapters := p.extractProcessedChapters(sceneList)
 	globalCounter := p.maxGlobalSequence(sceneList)
@@ -44,12 +48,12 @@ func (p *Pipeline) ExtractScenes(ctx context.Context, manifest *model.ProjectMan
 
 		if resume {
 			if _, done := processedChapters[ch.ID]; done {
-				logger.Debug("chapter scenes already extracted, skipping", "chapter", ch.ID)
+				slog.Debug("chapter scenes already extracted, skipping", "chapter", ch.ID)
 				continue
 			}
 		}
 
-		chapterContent, err := storage.ReadMarkdown(storage.RawDir(outputDir, projectName) + "/" + ch.Filename)
+		chapterContent, err := storage.ReadMarkdown(filepath.Join(storage.RawDir(outputDir, projectName), ch.Filename))
 		if err != nil {
 			return nil, fmt.Errorf("reading chapter %s: %w", ch.ID, err)
 		}
@@ -82,13 +86,17 @@ func (p *Pipeline) ExtractScenes(ctx context.Context, manifest *model.ProjectMan
 			return nil, fmt.Errorf("saving scene list after %s: %w", ch.ID, err)
 		}
 
-		logger.Info("scenes extracted", "chapter", ch.ID, "new", len(chapterScenes.Scenes), "total", len(sceneList.Scenes))
+		slog.Info("scenes extracted", "chapter", ch.ID, "new", len(chapterScenes.Scenes), "total", len(sceneList.Scenes))
 	}
 
 	return sceneList, nil
 }
 
 func (p *Pipeline) validateCharacterRefs(scene *model.Scene, note *model.CharacterNote, chapterID string) {
+	if note == nil {
+		slog.Warn("scene validation skipped because CharacterNote is missing", "scene", scene.ID, "chapter", chapterID)
+		return
+	}
 	charIndex := make(map[string]bool)
 	for _, c := range note.Characters {
 		charIndex[c.ID] = true
@@ -96,7 +104,7 @@ func (p *Pipeline) validateCharacterRefs(scene *model.Scene, note *model.Charact
 
 	for _, charID := range scene.CharactersPresent {
 		if !charIndex[charID] {
-			logger.Warn("scene references character not found in CharacterNote",
+			slog.Warn("scene references character not found in CharacterNote",
 				"scene", scene.ID, "chapter", chapterID, "character", charID)
 		}
 	}

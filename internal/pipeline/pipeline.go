@@ -3,20 +3,22 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
-	"github.com/comix/comix/internal/config"
-	"github.com/comix/comix/internal/imagegen"
-	"github.com/comix/comix/internal/llm"
-	"github.com/comix/comix/internal/logger"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/state"
+	"github.com/FarelRA/comix/internal/config"
+	"github.com/FarelRA/comix/internal/imagegen"
+	"github.com/FarelRA/comix/internal/llm"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/state"
 )
 
 type IngestSource struct {
-	BookDir  string
-	Cover    string
-	Chapters []string
+	ProjectName   string
+	BookDir       string
+	Cover         string
+	Chapters      []string
+	AllowExisting bool
 }
 
 type Pipeline struct {
@@ -53,7 +55,7 @@ func (p *Pipeline) Run(ctx context.Context, projectName string, source IngestSou
 				return fmt.Errorf("loading existing manifest for resume: %w", err)
 			}
 			manifest = m
-			logger.Info("resuming project", "project", projectName, "phase", manifest.Pipeline.CurrentPhase)
+			slog.Info("resuming project", "project", projectName, "phase", manifest.Pipeline.CurrentPhase)
 		}
 	}
 
@@ -61,12 +63,12 @@ func (p *Pipeline) Run(ctx context.Context, projectName string, source IngestSou
 		if manifest != nil {
 			ps := manifest.Pipeline.Phases[name]
 			if ps.Status == model.PhaseCompleted {
-				logger.Debug("phase already completed, skipping", "phase", name)
+				slog.Debug("phase already completed, skipping", "phase", name)
 				return nil
 			}
 		}
 
-		logger.Info("starting phase", "phase", name)
+		slog.Info("starting phase", "phase", name)
 
 		now := time.Now().UTC()
 		phaseStatus := model.PhaseStatus{
@@ -86,7 +88,9 @@ func (p *Pipeline) Run(ctx context.Context, projectName string, source IngestSou
 		}
 
 		if err := fn(ctx); err != nil {
-			state.RecordPhaseError(outputDir, projectName, name, err)
+			if recordErr := state.RecordPhaseError(outputDir, projectName, name, err); recordErr != nil {
+				return fmt.Errorf("phase %q failed: %w; recording phase error failed: %v", name, err, recordErr)
+			}
 			return fmt.Errorf("phase %q failed: %w", name, err)
 		}
 
@@ -104,7 +108,7 @@ func (p *Pipeline) Run(ctx context.Context, projectName string, source IngestSou
 			}
 		}
 
-		logger.Info("phase completed", "phase", name)
+		slog.Info("phase completed", "phase", name)
 		return nil
 	}
 
@@ -112,10 +116,20 @@ func (p *Pipeline) Run(ctx context.Context, projectName string, source IngestSou
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("pipeline cancelled during phase %q: %w", phase, err)
 		}
+		if manifest == nil && phase != model.PhaseNameIngest {
+			m, err := state.LoadManifest(outputDir, projectName)
+			if err != nil {
+				return fmt.Errorf("loading manifest for phase %q: %w", phase, err)
+			}
+			manifest = m
+		}
 
 		switch phase {
 		case model.PhaseNameIngest:
 			if err := runPhase(phase, func(ctx context.Context) error {
+				if source.ProjectName == "" {
+					source.ProjectName = projectName
+				}
 				m, err := p.Ingest(ctx, source)
 				if err != nil {
 					return err
@@ -129,11 +143,10 @@ func (p *Pipeline) Run(ctx context.Context, projectName string, source IngestSou
 
 		case model.PhaseNameCharacters:
 			if err := runPhase(phase, func(ctx context.Context) error {
-				note, err := p.ExtractCharacters(ctx, manifest, resume)
+				_, err := p.ExtractCharacters(ctx, manifest, resume)
 				if err != nil {
 					return err
 				}
-				_ = note
 				return nil
 			}); err != nil {
 				return err
@@ -145,11 +158,10 @@ func (p *Pipeline) Run(ctx context.Context, projectName string, source IngestSou
 				if err != nil {
 					return fmt.Errorf("loading character note for scene extraction: %w", err)
 				}
-				scenes, err := p.ExtractScenes(ctx, manifest, note, resume)
+				_, err = p.ExtractScenes(ctx, manifest, note, resume)
 				if err != nil {
 					return err
 				}
-				_ = scenes
 				return nil
 			}); err != nil {
 				return err
@@ -198,12 +210,18 @@ func (p *Pipeline) Run(ctx context.Context, projectName string, source IngestSou
 	}
 
 	if manifest != nil {
+		for _, phase := range model.AllPhases {
+			if manifest.Pipeline.Phases[phase].Status != model.PhaseCompleted {
+				slog.Info("pipeline run completed with remaining phases", "project", projectName)
+				return nil
+			}
+		}
 		manifest.Pipeline.Status = model.PhaseCompleted
 		if err := state.SaveManifest(outputDir, projectName, manifest); err != nil {
 			return fmt.Errorf("saving final manifest: %w", err)
 		}
 	}
 
-	logger.Info("pipeline completed", "project", projectName)
+	slog.Info("pipeline completed", "project", projectName)
 	return nil
 }

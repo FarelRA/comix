@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/state"
-	"github.com/comix/comix/internal/storage"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/state"
+	"github.com/FarelRA/comix/internal/storage"
 )
 
 type discoveredChapter struct {
@@ -22,6 +22,11 @@ type discoveredChapter struct {
 }
 
 func (p *Pipeline) Ingest(ctx context.Context, source IngestSource) (*model.ProjectManifest, error) {
+	if source.ProjectName != "" {
+		if err := storage.ValidateName(source.ProjectName); err != nil {
+			return nil, fmt.Errorf("validating project name: %w", err)
+		}
+	}
 	chapters, coverContent, err := p.discoverFiles(source)
 	if err != nil {
 		return nil, fmt.Errorf("discovering files: %w", err)
@@ -38,6 +43,13 @@ func (p *Pipeline) Ingest(ctx context.Context, source IngestSource) (*model.Proj
 
 	outputDir := p.cfg.Pipeline.OutputDir
 	projectName := manifest.Project.Name
+	exists, err := state.ManifestExists(outputDir, projectName)
+	if err != nil {
+		return nil, fmt.Errorf("checking existing project: %w", err)
+	}
+	if exists && !source.AllowExisting {
+		return nil, fmt.Errorf("project %q already exists; use --resume to continue an existing project", projectName)
+	}
 
 	rawDir := storage.RawDir(outputDir, projectName)
 	if err := storage.EnsureDir(rawDir); err != nil {
@@ -114,7 +126,7 @@ func (p *Pipeline) discoverFromDir(bookDir string) ([]discoveredChapter, string,
 		}
 
 		filename := filepath.Base(match)
-		id := chapterIDFromFilename(filename)
+		id := storage.SlugName(chapterIDFromFilename(filename))
 		title := chapterTitleFromContent(content, id)
 
 		chapters = append(chapters, discoveredChapter{
@@ -156,7 +168,7 @@ func (p *Pipeline) discoverFromExplicit(coverPath string, chapterPaths []string)
 		}
 
 		filename := filepath.Base(chPath)
-		id := chapterIDFromFilename(filename)
+		id := storage.SlugName(chapterIDFromFilename(filename))
 		title := chapterTitleFromContent(content, id)
 
 		chapters = append(chapters, discoveredChapter{
@@ -202,6 +214,9 @@ func (p *Pipeline) buildManifest(source IngestSource, chapters []discoveredChapt
 }
 
 func (p *Pipeline) extractProjectName(source IngestSource, chapters []discoveredChapter) string {
+	if source.ProjectName != "" {
+		return source.ProjectName
+	}
 	if source.BookDir != "" {
 		return filepath.Base(source.BookDir)
 	}
@@ -236,5 +251,3 @@ func wordCount(s string) int {
 	words := strings.Fields(s)
 	return len(words)
 }
-
-

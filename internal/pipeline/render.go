@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
-	"github.com/comix/comix/internal/imagegen"
-	"github.com/comix/comix/internal/logger"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/storage"
+	"github.com/FarelRA/comix/internal/imagegen"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/storage"
 )
 
 const charRefThreshold = 7
@@ -44,12 +44,13 @@ func (p *Pipeline) RenderScenes(ctx context.Context, manifest *model.ProjectMani
 		panelPath := filepath.Join(storage.PanelsDir(outputDir, projectName), fmt.Sprintf("%s.png", scene.ID))
 
 		if p.panelExists(panelPath) {
-			logger.Debug("scene already rendered, loading for continuity", "scene", scene.ID)
+			slog.Debug("scene already rendered, loading for continuity", "scene", scene.ID)
 			img, err := loadImage(panelPath)
 			if err != nil {
-				logger.Warn("could not load existing panel", "scene", scene.ID, "error", err)
+				slog.Warn("could not load existing panel", "scene", scene.ID, "error", err)
 			} else {
 				prevPanel = img
+				prevSceneDesc = p.buildSceneDescription(scene)
 			}
 			continue
 		}
@@ -92,7 +93,7 @@ func (p *Pipeline) RenderScenes(ctx context.Context, manifest *model.ProjectMani
 
 		prevPanel = result.Image
 		prevSceneDesc = sceneDesc
-		logger.Info("rendered scene", "scene", scene.ID, "global_seq", scene.GlobalSequence)
+		slog.Info("rendered scene", "scene", scene.ID, "global_seq", scene.GlobalSequence)
 	}
 
 	return nil
@@ -225,12 +226,16 @@ func (p *Pipeline) loadCharacterRefImages(projectName string, scene model.Scene,
 			sheetPath := filepath.Join(storage.SheetsDir(outputDir, projectName), fmt.Sprintf("%s_3x2.png", charID))
 			if img, err := loadImage(sheetPath); err == nil {
 				refs = append(refs, img)
+			} else {
+				slog.Warn("missing character sheet reference", "character", charID, "path", sheetPath, "error", err)
 			}
 		}
 
 		posePath := filepath.Join(storage.PosesDir(outputDir, projectName), fmt.Sprintf("%s_5x5.png", charID))
 		if img, err := loadImage(posePath); err == nil {
 			refs = append(refs, img)
+		} else {
+			slog.Warn("missing character pose reference", "character", charID, "path", posePath, "error", err)
 		}
 	}
 

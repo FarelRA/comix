@@ -16,19 +16,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/comix/comix/internal/config"
-	"github.com/comix/comix/internal/imagegen"
-	"github.com/comix/comix/internal/llm"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/pipeline"
-	"github.com/comix/comix/internal/state"
+	"github.com/FarelRA/comix/internal/config"
+	"github.com/FarelRA/comix/internal/imagegen"
+	"github.com/FarelRA/comix/internal/llm"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/pipeline"
+	"github.com/FarelRA/comix/internal/state"
 )
 
 func testServer(t *testing.T, outputDir string) *Server {
 	t.Helper()
 	cfg := testConfig(outputDir)
 	llmClient := llm.NewClient("sk-test", "gpt-5.4-mini", "medium")
-	imgGenClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium")
+	imgGenClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium")
 	p := pipeline.NewPipeline(cfg, llmClient, imgGenClient)
 	return NewServer(cfg, p)
 }
@@ -37,7 +37,7 @@ func testConfig(outputDir string) *config.Config {
 	return &config.Config{
 		OpenAI: config.OpenAIConfig{
 			APIKey: "sk-test",
-			LLM: config.LLMConfig{},
+			LLM:    config.LLMConfig{},
 			Image: config.ImageConfig{
 				Size: config.ImageSizeConfig{
 					Sheet: "2880x1920",
@@ -59,6 +59,8 @@ func testConfig(outputDir string) *config.Config {
 			ReadTimeout:     30000000000,
 			WriteTimeout:    60000000000,
 			ShutdownTimeout: 15000000000,
+			AllowedOrigins:  []string{"http://example.com"},
+			RateLimit:       1000,
 		},
 		Logging: config.LoggingConfig{
 			Level:  "info",
@@ -464,10 +466,10 @@ func TestDetectContentType(t *testing.T) {
 		{"file.jpg", "image/jpeg"},
 		{"file.jpeg", "image/jpeg"},
 		{"file.json", "application/json"},
-		{"file.yaml", "application/x-yaml"},
-		{"file.yml", "application/x-yaml"},
+		{"file.yaml", "application/yaml"},
+		{"file.yml", "application/yaml"},
 		{"file.md", "text/markdown"},
-		{"file.txt", "application/octet-stream"},
+		{"file.txt", "text/plain"},
 		{"file", "application/octet-stream"},
 	}
 	for _, tt := range tests {
@@ -489,12 +491,24 @@ func createTestPNG() image.Image {
 func TestOutputServesPNG(t *testing.T) {
 	tmpDir := t.TempDir()
 	srv := testServer(t, tmpDir)
-	state.SaveManifest(tmpDir, "proj", model.NewProjectManifest("proj", "dir", "/tmp", nil))
+	if err := state.SaveManifest(tmpDir, "proj", model.NewProjectManifest("proj", "dir", "/tmp", nil)); err != nil {
+		t.Fatalf("SaveManifest: %v", err)
+	}
 	panelsDir := filepath.Join(tmpDir, "proj", "panels")
-	os.MkdirAll(panelsDir, 0755)
-	f, _ := os.Create(filepath.Join(panelsDir, "scene_001.png"))
-	png.Encode(f, createTestPNG())
-	f.Close()
+	if err := os.MkdirAll(panelsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	f, err := os.Create(filepath.Join(panelsDir, "scene_001.png"))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := png.Encode(f, createTestPNG()); err != nil {
+		f.Close()
+		t.Fatalf("png Encode: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
 
 	resp := requestTo(srv, http.MethodGet, "/api/projects/proj/output/panels/scene_001.png", nil)
 	if resp.StatusCode != http.StatusOK {
@@ -657,13 +671,49 @@ func TestRunPhase_AlreadyRunning(t *testing.T) {
 	tmpDir := t.TempDir()
 	srv := testServer(t, tmpDir)
 	state.SaveManifest(tmpDir, "busy", model.NewProjectManifest("busy", "dir", "/tmp", nil))
-	taskKey := "busy:characters"
+	taskKey := "busy"
 	srv.tasks.Store(taskKey, nil)
 	defer srv.tasks.Delete(taskKey)
 
 	resp := requestTo(srv, http.MethodPost, "/api/projects/busy/run/characters", nil)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("expected 409, got %d", resp.StatusCode)
+	}
+}
+
+func TestIngest_RejectsUnsafeChapterFilename(t *testing.T) {
+	tmpDir := t.TempDir()
+	srv := testServer(t, tmpDir)
+	state.SaveManifest(tmpDir, "testproj", model.NewProjectManifest("testproj", "upload", "", nil))
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	coverPart, _ := w.CreateFormFile("cover", "cover.md")
+	coverPart.Write([]byte("# Cover"))
+	chPart, _ := w.CreateFormFile("chapters", `dir\chapter_01.md`)
+	chPart.Write([]byte("# Ch1"))
+	w.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/testproj/ingest", &buf)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	wrec := httptest.NewRecorder()
+	srv.router.ServeHTTP(wrec, req)
+
+	if wrec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", wrec.Code)
+	}
+	env := decodeEnvelope(t, wrec.Result())
+	if env.Error == nil || env.Error.Code != "INVALID_UPLOAD_FILENAME" {
+		t.Fatalf("expected INVALID_UPLOAD_FILENAME, got %+v", env.Error)
+	}
+}
+
+func TestCreateProject_RejectsLargeJSONBody(t *testing.T) {
+	srv := testServer(t, t.TempDir())
+	body := strings.NewReader(`{"name":"` + strings.Repeat("a", maxJSONBodyBytes) + `"}`)
+	resp := requestTo(srv, http.MethodPost, "/api/projects", body)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -736,28 +786,6 @@ func TestGetOutput_ServesYAML(t *testing.T) {
 	}
 }
 
-func TestRequestLogger(t *testing.T) {
-	rw := &responseWriter{ResponseWriter: httptest.NewRecorder(), statusCode: http.StatusOK}
-
-	rw.WriteHeader(http.StatusOK)
-	if rw.statusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", rw.statusCode)
-	}
-
-	rw.WriteHeader(http.StatusNotFound)
-	if rw.statusCode != http.StatusOK {
-		t.Errorf("expected WriteHeader to be idempotent, got %d", rw.statusCode)
-	}
-
-	n, err := rw.Write([]byte("hello"))
-	if err != nil {
-		t.Fatalf("Write failed: %v", err)
-	}
-	if n != 5 {
-		t.Errorf("expected 5 bytes written, got %d", n)
-	}
-}
-
 func TestEncodeDecodeEnvelope(t *testing.T) {
 	env := envelope{
 		Success: true,
@@ -794,7 +822,7 @@ func TestEncodeDecodeEnvelope_Error(t *testing.T) {
 		},
 		Meta: meta{
 			RequestID: "req-001",
-			Timestamp: mustParseTime("2026-06-01T10:00:00Z"),
+			Timestamp: mustParseTime(t, "2026-06-01T10:00:00Z"),
 		},
 	}
 	data, err := json.Marshal(env)
@@ -816,12 +844,13 @@ func TestEncodeDecodeEnvelope_Error(t *testing.T) {
 	}
 }
 
-func mustParseTime(s string) time.Time {
-	t, err := time.Parse(time.RFC3339, s)
+func mustParseTime(t *testing.T, s string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, s)
 	if err != nil {
-		panic(err)
+		t.Fatalf("parsing time %q: %v", s, err)
 	}
-	return t
+	return parsed
 }
 
 func TestDetectContentType_EdgeCases(t *testing.T) {

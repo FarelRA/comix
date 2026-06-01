@@ -5,7 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/comix/comix/internal/cli"
+	"github.com/FarelRA/comix/internal/cli"
 )
 
 func main() {

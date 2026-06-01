@@ -3,7 +3,11 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,19 +16,33 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-playground/validator/v10"
 
-	"github.com/comix/comix/internal/logger"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/pipeline"
-	"github.com/comix/comix/internal/state"
-	"github.com/comix/comix/internal/storage"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/pipeline"
+	"github.com/FarelRA/comix/internal/state"
+	"github.com/FarelRA/comix/internal/storage"
 )
+
+var validate = validator.New()
+
+const maxUploadBytes = 128 << 20
+const maxJSONBodyBytes = 1 << 20
+
+func projectID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	id := chi.URLParam(r, "id")
+	if err := storage.ValidateName(id); err != nil {
+		writeError(w, r, http.StatusBadRequest, "INVALID_PROJECT_ID", err.Error(), nil)
+		return "", false
+	}
+	return id, true
+}
 
 type envelope struct {
 	Success bool        `json:"success"`
 	Data    interface{} `json:"data"`
 	Error   *apiError   `json:"error"`
-	Meta   meta        `json:"meta"`
+	Meta    meta        `json:"meta"`
 }
 
 type apiError struct {
@@ -52,7 +70,9 @@ func writeJSON(w http.ResponseWriter, r *http.Request, status int, data interfac
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("writing json response failed", "error", err)
+	}
 }
 
 func writeError(w http.ResponseWriter, r *http.Request, status int, code, message string, details interface{}) {
@@ -74,19 +94,35 @@ func writeError(w http.ResponseWriter, r *http.Request, status int, code, messag
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		slog.Error("writing error response failed", "error", err)
+	}
+}
+
+func validationDetails(err error) map[string]string {
+	details := make(map[string]string)
+	var validationErrs validator.ValidationErrors
+	if !errors.As(err, &validationErrs) {
+		details["error"] = err.Error()
+		return details
+	}
+	for _, fieldErr := range validationErrs {
+		details[fieldErr.Field()] = fieldErr.Tag()
+	}
+	return details
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, r, http.StatusOK, map[string]string{
-		"status": "ok",
+		"status":  "ok",
 		"version": "0.1.0",
 	})
 }
 
 func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
 	var req struct {
-		Name       string `json:"name"`
+		Name       string `json:"name" validate:"required"`
 		SourceType string `json:"source_type"`
 		SourcePath string `json:"source_path"`
 	}
@@ -96,8 +132,12 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" {
-		writeError(w, r, http.StatusBadRequest, "INVALID_REQUEST", "Project name is required", nil)
+	if err := validate.Struct(req); err != nil {
+		writeError(w, r, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body", validationDetails(err))
+		return
+	}
+	if err := storage.ValidateName(req.Name); err != nil {
+		writeError(w, r, http.StatusBadRequest, "INVALID_PROJECT_ID", err.Error(), nil)
 		return
 	}
 
@@ -156,14 +196,21 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id, ok := projectID(w, r)
+	if !ok {
+		return
+	}
 
 	if _, ok := s.tasks.Load(id); ok {
 		writeError(w, r, http.StatusConflict, "PROJECT_BUSY", fmt.Sprintf("Project %q has a running task", id), nil)
 		return
 	}
 
-	projectDir := storage.ProjectDir(s.cfg.Pipeline.OutputDir, id)
+	projectDir, err := storage.SafeProjectDir(s.cfg.Pipeline.OutputDir, id)
+	if err != nil {
+		writeError(w, r, http.StatusBadRequest, "INVALID_PROJECT_ID", err.Error(), nil)
+		return
+	}
 	exists, err := storage.DirectoryExists(projectDir)
 	if err != nil {
 		writeError(w, r, http.StatusInternalServerError, "CHECK_FAILED", err.Error(), nil)
@@ -185,7 +232,10 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id, ok := projectID(w, r)
+	if !ok {
+		return
+	}
 
 	exists, err := state.ManifestExists(s.cfg.Pipeline.OutputDir, id)
 	if err != nil {
@@ -208,7 +258,8 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(128 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
+	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
 		writeError(w, r, http.StatusBadRequest, "INVALID_UPLOAD", "Failed to parse multipart form: "+err.Error(), nil)
 		return
 	}
@@ -220,16 +271,20 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	coverFile, coverHeader, err := r.FormFile("cover")
+	coverFile, _, err := r.FormFile("cover")
 	if err != nil {
 		writeError(w, r, http.StatusBadRequest, "MISSING_COVER", "Cover file is required (field name: 'cover')", nil)
 		return
 	}
 	defer coverFile.Close()
 
-	coverData := make([]byte, coverHeader.Size)
-	if _, err := coverFile.Read(coverData); err != nil {
+	coverData, err := io.ReadAll(io.LimitReader(coverFile, maxUploadBytes+1))
+	if err != nil {
 		writeError(w, r, http.StatusInternalServerError, "READ_FAILED", "Failed to read cover file: "+err.Error(), nil)
+		return
+	}
+	if int64(len(coverData)) > maxUploadBytes {
+		writeError(w, r, http.StatusRequestEntityTooLarge, "UPLOAD_TOO_LARGE", "Cover file is too large", nil)
 		return
 	}
 
@@ -254,13 +309,22 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 		}
 		defer f.Close()
 
-		data := make([]byte, fh.Size)
-		if _, err := f.Read(data); err != nil {
+		data, err := io.ReadAll(io.LimitReader(f, maxUploadBytes+1))
+		if err != nil {
 			writeError(w, r, http.StatusInternalServerError, "READ_FAILED", fmt.Sprintf("Failed to read chapter[%d]: %s", i, err.Error()), nil)
 			return
 		}
+		if int64(len(data)) > maxUploadBytes {
+			writeError(w, r, http.StatusRequestEntityTooLarge, "UPLOAD_TOO_LARGE", fmt.Sprintf("Chapter[%d] is too large", i), nil)
+			return
+		}
 
-		chPath := filepath.Join(tmpDir, fh.Filename)
+		filename, err := safeUploadFilename(fh.Filename)
+		if err != nil {
+			writeError(w, r, http.StatusBadRequest, "INVALID_UPLOAD_FILENAME", err.Error(), nil)
+			return
+		}
+		chPath := filepath.Join(tmpDir, filename)
 		if err := os.WriteFile(chPath, data, 0644); err != nil {
 			writeError(w, r, http.StatusInternalServerError, "WRITE_FAILED", err.Error(), nil)
 			return
@@ -269,9 +333,11 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	source := pipeline.IngestSource{
-		BookDir:  tmpDir,
-		Cover:    coverPath,
-		Chapters: chapterPaths,
+		ProjectName:   id,
+		BookDir:       tmpDir,
+		Cover:         coverPath,
+		Chapters:      chapterPaths,
+		AllowExisting: true,
 	}
 
 	ctx := r.Context()
@@ -290,7 +356,10 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetStatus(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id, ok := projectID(w, r)
+	if !ok {
+		return
+	}
 
 	exists, err := state.ManifestExists(s.cfg.Pipeline.OutputDir, id)
 	if err != nil {
@@ -311,14 +380,17 @@ func (s *Server) handleGetStatus(w http.ResponseWriter, r *http.Request) {
 	_, running := s.tasks.Load(id)
 
 	writeJSON(w, r, http.StatusOK, map[string]interface{}{
-		"project":   manifest.Project,
-		"pipeline":  manifest.Pipeline,
-		"running":   running,
+		"project":  manifest.Project,
+		"pipeline": manifest.Pipeline,
+		"running":  running,
 	})
 }
 
 func (s *Server) handleRunPipeline(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id, ok := projectID(w, r)
+	if !ok {
+		return
+	}
 
 	exists, err := state.ManifestExists(s.cfg.Pipeline.OutputDir, id)
 	if err != nil {
@@ -330,13 +402,12 @@ func (s *Server) handleRunPipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, loaded := s.tasks.LoadOrStore(id, nil); loaded {
+	ctx, cancel := context.WithCancel(context.Background())
+	if _, loaded := s.tasks.LoadOrStore(id, cancel); loaded {
+		cancel()
 		writeError(w, r, http.StatusConflict, "ALREADY_RUNNING", fmt.Sprintf("A pipeline is already running for project %q", id), nil)
 		return
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	s.tasks.Store(id, cancel)
 
 	writeJSON(w, r, http.StatusAccepted, map[string]string{
 		"status":     "started",
@@ -352,13 +423,16 @@ func (s *Server) handleRunPipeline(w http.ResponseWriter, r *http.Request) {
 
 		source := pipeline.IngestSource{}
 		if err := s.pipeline.Run(ctx, id, source, nil, true); err != nil {
-			logger.Error("pipeline run failed", "project", id, "error", err)
+			slog.Error("pipeline run failed", "project", id, "error", err)
 		}
 	}()
 }
 
 func (s *Server) handleRunPhase(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id, ok := projectID(w, r)
+	if !ok {
+		return
+	}
 	phase := chi.URLParam(r, "phase")
 
 	validPhases := map[string]bool{
@@ -384,14 +458,13 @@ func (s *Server) handleRunPhase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	taskKey := id + ":" + phase
-	if _, loaded := s.tasks.LoadOrStore(taskKey, nil); loaded {
+	taskKey := id
+	ctx, cancel := context.WithCancel(context.Background())
+	if _, loaded := s.tasks.LoadOrStore(taskKey, cancel); loaded {
+		cancel()
 		writeError(w, r, http.StatusConflict, "ALREADY_RUNNING", fmt.Sprintf("Phase %q is already running for project %q", phase, id), nil)
 		return
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	s.tasks.Store(taskKey, cancel)
 
 	writeJSON(w, r, http.StatusAccepted, map[string]string{
 		"status":     "started",
@@ -408,13 +481,16 @@ func (s *Server) handleRunPhase(w http.ResponseWriter, r *http.Request) {
 
 		source := pipeline.IngestSource{}
 		if err := s.pipeline.Run(ctx, id, source, []string{phase}, true); err != nil {
-			logger.Error("phase run failed", "phase", phase, "project", id, "error", err)
+			slog.Error("phase run failed", "phase", phase, "project", id, "error", err)
 		}
 	}()
 }
 
 func (s *Server) handleListOutputs(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id, ok := projectID(w, r)
+	if !ok {
+		return
+	}
 
 	projectDir := storage.ProjectDir(s.cfg.Pipeline.OutputDir, id)
 	exists, err := storage.DirectoryExists(projectDir)
@@ -428,12 +504,16 @@ func (s *Server) handleListOutputs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var files []map[string]interface{}
-	err = filepath.Walk(projectDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(projectDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
 		}
 
 		relPath, _ := filepath.Rel(projectDir, path)
@@ -442,9 +522,9 @@ func (s *Server) handleListOutputs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		files = append(files, map[string]interface{}{
-			"path":         relPath,
-			"size":         info.Size(),
-			"modified_at":  info.ModTime().UTC(),
+			"path":        relPath,
+			"size":        info.Size(),
+			"modified_at": info.ModTime().UTC(),
 		})
 		return nil
 	})
@@ -461,16 +541,15 @@ func (s *Server) handleListOutputs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetOutput(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id, ok := projectID(w, r)
+	if !ok {
+		return
+	}
 	filePath := chi.URLParam(r, "*")
 
 	projectDir := storage.ProjectDir(s.cfg.Pipeline.OutputDir, id)
-	fullPath := filepath.Join(projectDir, filePath)
-
-	absProject, _ := filepath.Abs(projectDir)
-	absFull, _ := filepath.Abs(fullPath)
-
-	if !strings.HasPrefix(absFull, absProject) {
+	fullPath, err := storage.SafeJoin(projectDir, filePath)
+	if err != nil {
 		writeError(w, r, http.StatusForbidden, "PATH_TRAVERSAL", "Access denied", nil)
 		return
 	}
@@ -484,20 +563,17 @@ func (s *Server) handleGetOutput(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, fullPath)
 }
 
-func detectContentType(path string) string {
-	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".png":
-		return "image/png"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".json":
-		return "application/json"
-	case ".yaml", ".yml":
-		return "application/x-yaml"
-	case ".md":
-		return "text/markdown"
-	default:
-		return "application/octet-stream"
+func safeUploadFilename(name string) (string, error) {
+	base := filepath.Base(name)
+	if base == "." || base == string(filepath.Separator) || base == "" || base != name || strings.ContainsAny(name, `/\\`) {
+		return "", fmt.Errorf("invalid upload filename %q", name)
 	}
+	return base, nil
+}
+
+func detectContentType(path string) string {
+	if ct := mime.TypeByExtension(strings.ToLower(filepath.Ext(path))); ct != "" {
+		return strings.Split(ct, ";")[0]
+	}
+	return "application/octet-stream"
 }

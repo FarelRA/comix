@@ -170,8 +170,8 @@ func TestCharacter_AddChapter_NoExistingChapters(t *testing.T) {
 
 func TestCharacterNote_Validate_LastUpdatedChapterMissing(t *testing.T) {
 	cn := &CharacterNote{
-		Schema:    "comix/character-note/v1",
-		Version:   1,
+		Schema:  "comix/character-note/v1",
+		Version: 1,
 		Characters: []Character{
 			{
 				ID:                  "alice",

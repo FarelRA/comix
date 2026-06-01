@@ -13,7 +13,7 @@ type ProjectManifest struct {
 type ProjectMeta struct {
 	Name      string        `json:"name" yaml:"name"`
 	CreatedAt time.Time     `json:"created_at" yaml:"created_at"`
-	Source    SourceInfo     `json:"source" yaml:"source"`
+	Source    SourceInfo    `json:"source" yaml:"source"`
 	Chapters  []ChapterMeta `json:"chapters" yaml:"chapters"`
 }
 
@@ -43,18 +43,18 @@ type PhaseStatus struct {
 }
 
 type PhaseError struct {
-	Phase      string    `json:"phase" yaml:"phase"`
-	Timestamp  time.Time `json:"timestamp" yaml:"timestamp"`
-	Message    string    `json:"message" yaml:"message"`
-	Recoverable bool     `json:"recoverable" yaml:"recoverable"`
+	Phase       string    `json:"phase" yaml:"phase"`
+	Timestamp   time.Time `json:"timestamp" yaml:"timestamp"`
+	Message     string    `json:"message" yaml:"message"`
+	Recoverable bool      `json:"recoverable" yaml:"recoverable"`
 }
 
 const (
-	PhaseIdle        = "idle"
-	PhaseInProgress  = "in_progress"
-	PhaseCompleted   = "completed"
-	PhaseFailed      = "failed"
-	PhasePending     = "pending"
+	PhaseIdle       = "idle"
+	PhaseInProgress = "in_progress"
+	PhaseCompleted  = "completed"
+	PhaseFailed     = "failed"
+	PhasePending    = "pending"
 
 	PhaseNameIngest     = "ingest"
 	PhaseNameCharacters = "characters"

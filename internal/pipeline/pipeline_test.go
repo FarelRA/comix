@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/comix/comix/internal/config"
-	"github.com/comix/comix/internal/imagegen"
-	"github.com/comix/comix/internal/llm"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/state"
-	"github.com/comix/comix/internal/storage"
+	"github.com/FarelRA/comix/internal/config"
+	"github.com/FarelRA/comix/internal/imagegen"
+	"github.com/FarelRA/comix/internal/llm"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/state"
+	"github.com/FarelRA/comix/internal/storage"
 )
 
 func TestIngest_FromBookDir(t *testing.T) {
@@ -147,7 +147,7 @@ func TestGenerateSheets_Success(t *testing.T) {
 
 	cfg := testConfig(outputDir)
 	mockSrv := newMockImageServer(t)
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -181,7 +181,7 @@ func TestGeneratePoses_Success(t *testing.T) {
 
 	cfg := testConfig(outputDir)
 	mockSrv := newMockImageServer(t)
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -215,7 +215,7 @@ func TestGeneratePoses_MissingSheet(t *testing.T) {
 
 	cfg := testConfig(outputDir)
 	mockSrv := newMockImageServer(t)
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -235,7 +235,7 @@ func TestRenderScenes_FirstSceneGenerate(t *testing.T) {
 
 	mockSrv := newMockImageServer(t)
 	defer mockSrv.Close()
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -277,7 +277,7 @@ func TestRenderScenes_SequentialEdit(t *testing.T) {
 	}))
 	defer mockSrv.Close()
 
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -307,7 +307,7 @@ func TestRenderScenes_ResumeSkipsExisting(t *testing.T) {
 	}))
 	defer mockSrv.Close()
 
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -362,7 +362,7 @@ func TestPipelineRun_WithAllPhases(t *testing.T) {
 		},
 	}
 
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -381,6 +381,27 @@ func TestPipelineRun_WithAllPhases(t *testing.T) {
 
 	if manifest.Pipeline.Phases["ingest"].Status != model.PhaseCompleted {
 		t.Errorf("expected ingest completed, got %q", manifest.Pipeline.Phases["ingest"].Status)
+	}
+	if manifest.Pipeline.Status == model.PhaseCompleted {
+		t.Errorf("single-phase run should not mark entire pipeline completed")
+	}
+}
+
+func TestIngest_ExistingProjectRequiresAllowExisting(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "output")
+	createTestNovel(t, tmpDir)
+	novelDir := filepath.Join(tmpDir, "novel")
+
+	p := NewPipeline(testConfig(outputDir), nil, nil)
+	if _, err := p.Ingest(context.Background(), IngestSource{BookDir: novelDir}); err != nil {
+		t.Fatalf("first ingest failed: %v", err)
+	}
+	if _, err := p.Ingest(context.Background(), IngestSource{BookDir: novelDir}); err == nil {
+		t.Fatal("expected duplicate ingest to fail")
+	}
+	if _, err := p.Ingest(context.Background(), IngestSource{BookDir: novelDir, AllowExisting: true}); err != nil {
+		t.Fatalf("expected duplicate ingest with AllowExisting to succeed: %v", err)
 	}
 }
 
@@ -420,7 +441,7 @@ func testConfig(outputDir string) *config.Config {
 	return &config.Config{
 		OpenAI: config.OpenAIConfig{
 			APIKey: "sk-test",
-			LLM: config.LLMConfig{},
+			LLM:    config.LLMConfig{},
 			Image: config.ImageConfig{
 				Size: config.ImageSizeConfig{
 					Sheet: "2880x1920",
@@ -508,40 +529,40 @@ func createTestSceneList() *model.SceneList {
 		ProjectID: "test-proj",
 		Scenes: []model.Scene{
 			{
-				ID:               "scene_001",
-				Chapter:          "chapter_01",
-				ChapterSequence:  1,
-				GlobalSequence:   1,
-				Description:      "Alice sits on a riverbank.",
+				ID:                "scene_001",
+				Chapter:           "chapter_01",
+				ChapterSequence:   1,
+				GlobalSequence:    1,
+				Description:       "Alice sits on a riverbank.",
 				CharactersPresent: []string{"alice"},
-				Location:         "riverside",
-				Mood:             "peaceful",
-				VisualCues:       []string{"sunny", "green grass"},
-				PanelCount:       1,
+				Location:          "riverside",
+				Mood:              "peaceful",
+				VisualCues:        []string{"sunny", "green grass"},
+				PanelCount:        1,
 			},
 			{
-				ID:               "scene_002",
-				Chapter:          "chapter_01",
-				ChapterSequence:  2,
-				GlobalSequence:   2,
-				Description:      "A white rabbit runs past.",
+				ID:                "scene_002",
+				Chapter:           "chapter_01",
+				ChapterSequence:   2,
+				GlobalSequence:    2,
+				Description:       "A white rabbit runs past.",
 				CharactersPresent: []string{"alice"},
-				Location:         "riverside",
-				Mood:             "sudden",
-				VisualCues:       []string{"rabbit", "pocket watch"},
-				PanelCount:       1,
+				Location:          "riverside",
+				Mood:              "sudden",
+				VisualCues:        []string{"rabbit", "pocket watch"},
+				PanelCount:        1,
 			},
 			{
-				ID:               "scene_003",
-				Chapter:          "chapter_02",
-				ChapterSequence:  1,
-				GlobalSequence:   3,
-				Description:      "Alice grows very tall.",
+				ID:                "scene_003",
+				Chapter:           "chapter_02",
+				ChapterSequence:   1,
+				GlobalSequence:    3,
+				Description:       "Alice grows very tall.",
 				CharactersPresent: []string{"alice"},
-				Location:         "hallway",
-				Mood:             "confused",
-				VisualCues:       []string{"tall ceiling", "tiny door"},
-				PanelCount:       1,
+				Location:          "hallway",
+				Mood:              "confused",
+				VisualCues:        []string{"tall ceiling", "tiny door"},
+				PanelCount:        1,
 			},
 		},
 	}
@@ -693,11 +714,11 @@ func TestBuildCharacterIndex_Empty(t *testing.T) {
 func TestBuildSceneDescription(t *testing.T) {
 	p := &Pipeline{}
 	scene := model.Scene{
-		Description:      "Alice sits by the river.",
-		Location:         "riverside",
-		Mood:             "peaceful",
-		VisualCues:       []string{"sunny", "green grass"},
-		Dialogue:         []model.DialogueLine{{Speaker: "alice", Text: "Hello!"}},
+		Description: "Alice sits by the river.",
+		Location:    "riverside",
+		Mood:        "peaceful",
+		VisualCues:  []string{"sunny", "green grass"},
+		Dialogue:    []model.DialogueLine{{Speaker: "alice", Text: "Hello!"}},
 	}
 	desc := p.buildSceneDescription(scene)
 	if !strings.Contains(desc, "Alice sits by the river") {

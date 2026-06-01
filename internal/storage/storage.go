@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/renameio/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,7 +30,7 @@ func SaveJSON(path string, data any) error {
 		return err
 	}
 
-	if err := os.WriteFile(path, encoded, 0644); err != nil {
+	if err := WriteFileAtomic(path, encoded, 0644); err != nil {
 		return fmt.Errorf("writing json %s: %w", path, err)
 	}
 	return nil
@@ -57,7 +58,7 @@ func SaveYAML(path string, data any) error {
 		return err
 	}
 
-	if err := os.WriteFile(path, encoded, 0644); err != nil {
+	if err := WriteFileAtomic(path, encoded, 0644); err != nil {
 		return fmt.Errorf("writing yaml %s: %w", path, err)
 	}
 	return nil
@@ -79,17 +80,44 @@ func SavePNG(path string, img image.Image) error {
 	if err := EnsureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
-
-	f, err := os.Create(path)
+	f, err := renameio.TempFile(filepath.Dir(path), path)
 	if err != nil {
 		return fmt.Errorf("creating png %s: %w", path, err)
 	}
-	defer f.Close()
+	defer f.Cleanup()
 
 	if err := png.Encode(f, img); err != nil {
+		_ = f.Close()
 		return fmt.Errorf("encoding png %s: %w", path, err)
 	}
+	if err := f.Chmod(0644); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("setting png permissions %s: %w", path, err)
+	}
+	if err := f.CloseAtomicallyReplace(); err != nil {
+		return fmt.Errorf("closing png %s: %w", path, err)
+	}
 	return nil
+}
+
+func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
+	if err := EnsureDir(filepath.Dir(path)); err != nil {
+		return err
+	}
+	f, err := renameio.TempFile(filepath.Dir(path), path)
+	if err != nil {
+		return err
+	}
+	defer f.Cleanup()
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Chmod(perm); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.CloseAtomicallyReplace()
 }
 
 func EnsureDir(path string) error {

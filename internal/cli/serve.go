@@ -3,10 +3,10 @@ package cli
 import (
 	"fmt"
 
-	"github.com/comix/comix/internal/imagegen"
-	"github.com/comix/comix/internal/llm"
-	"github.com/comix/comix/internal/pipeline"
-	"github.com/comix/comix/internal/server"
+	"github.com/FarelRA/comix/internal/imagegen"
+	"github.com/FarelRA/comix/internal/llm"
+	"github.com/FarelRA/comix/internal/pipeline"
+	"github.com/FarelRA/comix/internal/server"
 
 	"github.com/spf13/cobra"
 )
@@ -19,14 +19,14 @@ var (
 		Short: "Start the HTTP server",
 		Long:  `Start the Comix HTTP server for web-based project management and pipeline execution.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := loadConfig()
-		if err != nil {
-			return fmt.Errorf("loading config: %w", err)
-		}
+			cfg, err := loadConfig()
+			if err != nil {
+				return fmt.Errorf("loading config: %w", err)
+			}
 
-		if cfg.OpenAI.APIKey == "" {
-			return fmt.Errorf("OPENAI_API_KEY is not set. Set it via export OPENAI_API_KEY=sk-... or in config.yaml")
-		}
+			if cfg.OpenAI.APIKey == "" {
+				return fmt.Errorf("OPENAI_API_KEY is not set. Set it via export OPENAI_API_KEY=sk-... or in config.yaml")
+			}
 
 			if serverPort > 0 {
 				cfg.Server.Port = serverPort
@@ -37,17 +37,14 @@ var (
 
 			llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).
 				WithBaseURL(cfg.OpenAI.BaseURL).
-				WithMaxRetries(cfg.OpenAI.LLM.MaxRetries).
-				WithRetryDelay(cfg.OpenAI.LLM.RetryBaseDelay)
+				WithMaxRetries(cfg.OpenAI.LLM.MaxRetries)
 
 			imgClient := imagegen.NewClient(
 				cfg.OpenAI.APIKey,
 				cfg.OpenAI.Image.Model,
 				cfg.OpenAI.Image.Quality,
-				cfg.OpenAI.Image.Thinking,
 			).WithBaseURL(cfg.OpenAI.BaseURL).
-				WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
-				WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay)
+				WithMaxRetries(cfg.OpenAI.Image.MaxRetries)
 
 			p := pipeline.NewPipeline(cfg, llmClient, imgClient)
 			srv := server.NewServer(cfg, p)

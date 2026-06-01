@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"path/filepath"
 
-	"github.com/comix/comix/internal/llm"
-	"github.com/comix/comix/internal/logger"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/state"
-	"github.com/comix/comix/internal/storage"
+	"github.com/FarelRA/comix/internal/llm"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/state"
+	"github.com/FarelRA/comix/internal/storage"
 )
 
 func (p *Pipeline) ExtractCharacters(ctx context.Context, manifest *model.ProjectManifest, resume bool) (*model.CharacterNote, error) {
@@ -22,7 +23,7 @@ func (p *Pipeline) ExtractCharacters(ctx context.Context, manifest *model.Projec
 		existing, err := state.LoadCharacterNote(outputDir, projectName)
 		if err == nil && existing != nil {
 			note = existing
-			logger.Info("loaded existing character note", "version", note.Version, "characters", len(note.Characters))
+			slog.Info("loaded existing character note", "version", note.Version, "characters", len(note.Characters))
 		}
 	}
 
@@ -33,7 +34,10 @@ func (p *Pipeline) ExtractCharacters(ctx context.Context, manifest *model.Projec
 		}
 	}
 
-	coverContent := p.readRawFile(outputDir, projectName, p.cfg.Pipeline.CoverFilename)
+	coverContent, err := p.readRawFile(outputDir, projectName, p.cfg.Pipeline.CoverFilename)
+	if err != nil {
+		return nil, err
+	}
 
 	chaptersToProcess := p.chaptersNeedingCharacterExtraction(manifest, note, resume)
 
@@ -42,7 +46,7 @@ func (p *Pipeline) ExtractCharacters(ctx context.Context, manifest *model.Projec
 			return note, fmt.Errorf("character extraction cancelled: %w", err)
 		}
 
-		chapterContent, err := storage.ReadMarkdown(storage.RawDir(outputDir, projectName) + "/" + ch.Filename)
+		chapterContent, err := storage.ReadMarkdown(filepath.Join(storage.RawDir(outputDir, projectName), ch.Filename))
 		if err != nil {
 			return nil, fmt.Errorf("reading chapter %s: %w", ch.ID, err)
 		}
@@ -75,18 +79,18 @@ func (p *Pipeline) ExtractCharacters(ctx context.Context, manifest *model.Projec
 			return nil, fmt.Errorf("saving character note after %s: %w", ch.ID, err)
 		}
 
-		logger.Info("characters extracted", "chapter", ch.ID, "total", len(note.Characters))
+		slog.Info("characters extracted", "chapter", ch.ID, "total", len(note.Characters))
 	}
 
 	return note, nil
 }
 
-func (p *Pipeline) readRawFile(outputDir, projectName, filename string) string {
-	content, err := storage.ReadMarkdown(storage.RawDir(outputDir, projectName) + "/" + filename)
+func (p *Pipeline) readRawFile(outputDir, projectName, filename string) (string, error) {
+	content, err := storage.ReadMarkdown(filepath.Join(storage.RawDir(outputDir, projectName), filename))
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("reading raw file %s: %w", filename, err)
 	}
-	return content
+	return content, nil
 }
 
 func (p *Pipeline) chaptersNeedingCharacterExtraction(manifest *model.ProjectManifest, note *model.CharacterNote, resume bool) []model.ChapterMeta {
@@ -111,7 +115,7 @@ func (p *Pipeline) chaptersNeedingCharacterExtraction(manifest *model.ProjectMan
 	}
 
 	if len(remaining) == 0 {
-		logger.Debug("all chapters already processed for characters", "last", note.LastUpdatedChapter)
+		slog.Debug("all chapters already processed for characters", "last", note.LastUpdatedChapter)
 	}
 
 	return remaining
