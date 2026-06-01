@@ -23,7 +23,7 @@ comix run --book-dir ./novels/alice/ --project alice
 Requires **Go 1.26+** and an **OpenAI API key** with access to GPT-4o and gpt-image-2.
 
 ```bash
-go install github.com/comix/comix/cmd/comix@latest
+go install github.com/FarelRA/comix/cmd/comix@latest
 ```
 
 Or build from source:

@@ -5,8 +5,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/state"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/state"
 
 	"github.com/spf13/cobra"
 )
@@ -51,11 +51,11 @@ var statusCmd = &cobra.Command{
 		fmt.Fprintf(cmd.OutOrStdout(), "\n")
 
 		statusIcon := map[string]string{
-			model.PhaseCompleted:   "✓",
-			model.PhaseInProgress:  "→",
-			model.PhaseFailed:      "✗",
-			model.PhasePending:     "·",
-			model.PhaseIdle:        "·",
+			model.PhaseCompleted:  "✓",
+			model.PhaseInProgress: "→",
+			model.PhaseFailed:     "✗",
+			model.PhasePending:    "·",
+			model.PhaseIdle:       "·",
 		}
 
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 3, ' ', 0)

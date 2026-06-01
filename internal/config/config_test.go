@@ -12,11 +12,10 @@ func validConfig() *Config {
 		OpenAI: OpenAIConfig{
 			APIKey: "sk-test-key-12345",
 			LLM: LLMConfig{
-				Model:          "gpt-5.4-mini",
-				Temperature:    0.1,
-				Thinking:       "medium",
-				MaxRetries:     5,
-				RetryBaseDelay: time.Second,
+				Model:       "gpt-5.4-mini",
+				Temperature: 0.1,
+				Thinking:    "medium",
+				MaxRetries:  5,
 			},
 			Image: ImageConfig{
 				Model:   "gpt-image-2",
@@ -26,9 +25,7 @@ func validConfig() *Config {
 					Poses: "2048x2048",
 					Panel: "1632x3808",
 				},
-				Thinking:       "medium",
-				MaxRetries:     5,
-				RetryBaseDelay: 2 * time.Second,
+				MaxRetries: 5,
 			},
 		},
 		Pipeline: PipelineConfig{
@@ -44,6 +41,7 @@ func validConfig() *Config {
 			ReadTimeout:     30 * time.Second,
 			WriteTimeout:    60 * time.Second,
 			ShutdownTimeout: 15 * time.Second,
+			RateLimit:       60,
 		},
 		Logging: LoggingConfig{
 			Level:  "info",
@@ -69,9 +67,19 @@ func TestValidate_EmptyAPIKey(t *testing.T) {
 
 func TestValidate_APIKeyPrefix(t *testing.T) {
 	cfg := validConfig()
+	cfg.OpenAI.BaseURL = "https://api.openai.com/v1"
 	cfg.OpenAI.APIKey = "invalid-key"
 	if err := cfg.Validate(); err == nil {
 		t.Error("expected error for api_key not starting with sk-")
+	}
+}
+
+func TestValidate_CustomBaseURLAllowsOpaqueAPIKey(t *testing.T) {
+	cfg := validConfig()
+	cfg.OpenAI.BaseURL = "http://localhost:11434/v1"
+	cfg.OpenAI.APIKey = "local-token"
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("expected custom base URL to allow opaque API key, got %v", err)
 	}
 }
 
@@ -96,14 +104,6 @@ func TestValidate_LLMMaxRetriesNegative(t *testing.T) {
 	}
 }
 
-func TestValidate_RetryBaseDelayZero(t *testing.T) {
-	cfg := validConfig()
-	cfg.OpenAI.LLM.RetryBaseDelay = 0
-	if err := cfg.Validate(); err == nil {
-		t.Error("expected error for retry_base_delay <= 0")
-	}
-}
-
 func TestValidate_LLMThinkingInvalid(t *testing.T) {
 	cfg := validConfig()
 	cfg.OpenAI.LLM.Thinking = "extreme"
@@ -120,27 +120,11 @@ func TestValidate_ImageQualityInvalid(t *testing.T) {
 	}
 }
 
-func TestValidate_ImageThinkingInvalid(t *testing.T) {
-	cfg := validConfig()
-	cfg.OpenAI.Image.Thinking = "extreme"
-	if err := cfg.Validate(); err == nil {
-		t.Error("expected error for invalid thinking")
-	}
-}
-
 func TestValidate_ImageMaxRetriesNegative(t *testing.T) {
 	cfg := validConfig()
 	cfg.OpenAI.Image.MaxRetries = -1
 	if err := cfg.Validate(); err == nil {
 		t.Error("expected error for negative image max_retries")
-	}
-}
-
-func TestValidate_ImageRetryDelayZero(t *testing.T) {
-	cfg := validConfig()
-	cfg.OpenAI.Image.RetryBaseDelay = 0
-	if err := cfg.Validate(); err == nil {
-		t.Error("expected error for image retry_base_delay <= 0")
 	}
 }
 

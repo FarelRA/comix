@@ -10,16 +10,16 @@ func TestSceneList_Validate_Success(t *testing.T) {
 		ProjectID: "alice",
 		Scenes: []Scene{
 			{
-				ID:               "scene_001",
-				Chapter:          "chapter_01",
-				ChapterSequence:  1,
-				GlobalSequence:   1,
-				Description:      "Alice sits by the riverbank.",
+				ID:                "scene_001",
+				Chapter:           "chapter_01",
+				ChapterSequence:   1,
+				GlobalSequence:    1,
+				Description:       "Alice sits by the riverbank.",
 				CharactersPresent: []string{"alice"},
-				Location:         "riverside",
-				Mood:             "bored",
-				VisualCues:       []string{"sunny", "green grass"},
-				PanelCount:       1,
+				Location:          "riverside",
+				Mood:              "bored",
+				VisualCues:        []string{"sunny", "green grass"},
+				PanelCount:        1,
 			},
 		},
 	}
@@ -51,10 +51,10 @@ func TestScene_Validate_EmptyID(t *testing.T) {
 
 func TestScene_Validate_EmptyDescription(t *testing.T) {
 	s := &Scene{
-		ID:               "scene_001",
-		Chapter:          "chapter_01",
-		ChapterSequence:  1,
-		GlobalSequence:   1,
+		ID:                "scene_001",
+		Chapter:           "chapter_01",
+		ChapterSequence:   1,
+		GlobalSequence:    1,
 		CharactersPresent: []string{"alice"},
 	}
 	if err := s.Validate(); err == nil {
@@ -64,11 +64,11 @@ func TestScene_Validate_EmptyDescription(t *testing.T) {
 
 func TestScene_Validate_Dialogue(t *testing.T) {
 	s := &Scene{
-		ID:               "scene_001",
-		Chapter:          "chapter_01",
-		ChapterSequence:  1,
-		GlobalSequence:   1,
-		Description:      "Alice speaks.",
+		ID:                "scene_001",
+		Chapter:           "chapter_01",
+		ChapterSequence:   1,
+		GlobalSequence:    1,
+		Description:       "Alice speaks.",
 		CharactersPresent: []string{"alice"},
 		Dialogue: []DialogueLine{
 			{Speaker: "alice", Text: "Hello!"},
@@ -82,13 +82,13 @@ func TestScene_Validate_Dialogue(t *testing.T) {
 
 func TestScene_Validate_PanelCountDefault(t *testing.T) {
 	s := &Scene{
-		ID:               "scene_001",
-		Chapter:          "chapter_01",
-		ChapterSequence:  1,
-		GlobalSequence:   1,
-		Description:      "desc",
+		ID:                "scene_001",
+		Chapter:           "chapter_01",
+		ChapterSequence:   1,
+		GlobalSequence:    1,
+		Description:       "desc",
 		CharactersPresent: []string{"alice"},
-		PanelCount:       0,
+		PanelCount:        0,
 	}
 	if err := s.Validate(); err != nil {
 		t.Errorf("expected no error with panel_count=0 (defaults to 1), got: %v", err)
@@ -134,10 +134,10 @@ func TestSceneList_Validate_EmptyProjectID(t *testing.T) {
 
 func TestScene_Validate_EmptyChapter(t *testing.T) {
 	s := &Scene{
-		ID:               "scene_001",
-		ChapterSequence:  1,
-		GlobalSequence:   1,
-		Description:      "desc",
+		ID:                "scene_001",
+		ChapterSequence:   1,
+		GlobalSequence:    1,
+		Description:       "desc",
 		CharactersPresent: []string{"alice"},
 	}
 	if err := s.Validate(); err == nil {
@@ -147,11 +147,11 @@ func TestScene_Validate_EmptyChapter(t *testing.T) {
 
 func TestScene_Validate_ChapterSequenceZero(t *testing.T) {
 	s := &Scene{
-		ID:               "scene_001",
-		Chapter:          "ch1",
-		ChapterSequence:  0,
-		GlobalSequence:   1,
-		Description:      "desc",
+		ID:                "scene_001",
+		Chapter:           "ch1",
+		ChapterSequence:   0,
+		GlobalSequence:    1,
+		Description:       "desc",
 		CharactersPresent: []string{"alice"},
 	}
 	if err := s.Validate(); err == nil {
@@ -161,11 +161,11 @@ func TestScene_Validate_ChapterSequenceZero(t *testing.T) {
 
 func TestScene_Validate_GlobalSequenceZero(t *testing.T) {
 	s := &Scene{
-		ID:               "scene_001",
-		Chapter:          "ch1",
-		ChapterSequence:  1,
-		GlobalSequence:   0,
-		Description:      "desc",
+		ID:                "scene_001",
+		Chapter:           "ch1",
+		ChapterSequence:   1,
+		GlobalSequence:    0,
+		Description:       "desc",
 		CharactersPresent: []string{"alice"},
 	}
 	if err := s.Validate(); err == nil {
@@ -175,11 +175,11 @@ func TestScene_Validate_GlobalSequenceZero(t *testing.T) {
 
 func TestScene_Validate_DialogueEmptyText(t *testing.T) {
 	s := &Scene{
-		ID:               "scene_001",
-		Chapter:          "ch1",
-		ChapterSequence:  1,
-		GlobalSequence:   1,
-		Description:      "desc",
+		ID:                "scene_001",
+		Chapter:           "ch1",
+		ChapterSequence:   1,
+		GlobalSequence:    1,
+		Description:       "desc",
 		CharactersPresent: []string{"alice"},
 		Dialogue: []DialogueLine{
 			{Speaker: "alice", Text: ""},
@@ -199,13 +199,13 @@ func TestScene_HasCharacter_EmptyList(t *testing.T) {
 
 func TestScene_PanelCountDefaultsToOne(t *testing.T) {
 	s := &Scene{
-		ID:               "scene_001",
-		Chapter:          "ch1",
-		ChapterSequence:  1,
-		GlobalSequence:   1,
-		Description:      "desc",
+		ID:                "scene_001",
+		Chapter:           "ch1",
+		ChapterSequence:   1,
+		GlobalSequence:    1,
+		Description:       "desc",
 		CharactersPresent: []string{"alice"},
-		PanelCount:       0,
+		PanelCount:        0,
 	}
 	s.Validate()
 	if s.PanelCount != 1 {

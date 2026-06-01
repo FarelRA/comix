@@ -12,17 +12,17 @@ type SceneList struct {
 }
 
 type Scene struct {
-	ID               string         `json:"id" yaml:"id"`
-	Chapter          string         `json:"chapter" yaml:"chapter"`
-	ChapterSequence  int            `json:"chapter_sequence" yaml:"chapter_sequence"`
-	GlobalSequence   int            `json:"global_sequence" yaml:"global_sequence"`
-	Description      string         `json:"description" yaml:"description"`
-	CharactersPresent []string      `json:"characters_present" yaml:"characters_present"`
-	Location         string         `json:"location" yaml:"location"`
-	Mood             string         `json:"mood" yaml:"mood"`
-	VisualCues       []string       `json:"visual_cues" yaml:"visual_cues"`
-	PanelCount       int            `json:"panel_count" yaml:"panel_count"`
-	Dialogue         []DialogueLine `json:"dialogue,omitempty" yaml:"dialogue,omitempty"`
+	ID                string         `json:"id" yaml:"id"`
+	Chapter           string         `json:"chapter" yaml:"chapter"`
+	ChapterSequence   int            `json:"chapter_sequence" yaml:"chapter_sequence"`
+	GlobalSequence    int            `json:"global_sequence" yaml:"global_sequence"`
+	Description       string         `json:"description" yaml:"description"`
+	CharactersPresent []string       `json:"characters_present" yaml:"characters_present"`
+	Location          string         `json:"location" yaml:"location"`
+	Mood              string         `json:"mood" yaml:"mood"`
+	VisualCues        []string       `json:"visual_cues" yaml:"visual_cues"`
+	PanelCount        int            `json:"panel_count" yaml:"panel_count"`
+	Dialogue          []DialogueLine `json:"dialogue,omitempty" yaml:"dialogue,omitempty"`
 }
 
 type DialogueLine struct {

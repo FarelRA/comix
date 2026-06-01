@@ -1,6 +1,47 @@
 package storage
 
-import "path/filepath"
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
+	"github.com/gosimple/slug"
+)
+
+func ValidateName(name string) error {
+	if name == "" || strings.Contains(name, "..") || filepath.Base(name) != name || slug.Make(name) != name {
+		return fmt.Errorf("invalid name %q: use a URL-safe slug", name)
+	}
+	return nil
+}
+
+func SlugName(name string) string { return slug.Make(name) }
+
+func SafeProjectDir(root, project string) (string, error) {
+	if err := ValidateName(project); err != nil {
+		return "", err
+	}
+	return filepath.Join(root, project), nil
+}
+
+func SafeJoin(root string, parts ...string) (string, error) {
+	base, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("resolving root: %w", err)
+	}
+	full, err := filepath.Abs(filepath.Join(append([]string{root}, parts...)...))
+	if err != nil {
+		return "", fmt.Errorf("resolving path: %w", err)
+	}
+	rel, err := filepath.Rel(base, full)
+	if err != nil {
+		return "", fmt.Errorf("checking relative path: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("path escapes root")
+	}
+	return full, nil
+}
 
 func ProjectDir(root, project string) string {
 	return filepath.Join(root, project)

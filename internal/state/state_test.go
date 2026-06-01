@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/comix/comix/internal/model"
+	"github.com/FarelRA/comix/internal/model"
 )
 
 func TestSaveAndLoadCharacterNote(t *testing.T) {
@@ -54,11 +54,11 @@ func TestSaveAndLoadSceneList(t *testing.T) {
 		ProjectID: "test-proj",
 		Scenes: []model.Scene{
 			{
-				ID:               "scene_001",
-				Chapter:          "chapter_01",
-				ChapterSequence:  1,
-				GlobalSequence:   1,
-				Description:      "Test scene",
+				ID:                "scene_001",
+				Chapter:           "chapter_01",
+				ChapterSequence:   1,
+				GlobalSequence:    1,
+				Description:       "Test scene",
 				CharactersPresent: []string{"alice"},
 			},
 		},
@@ -84,7 +84,7 @@ func TestSaveAndLoadSceneList(t *testing.T) {
 func TestSaveAndLoadManifest(t *testing.T) {
 	dir := t.TempDir()
 
-	now := mustParseTime("2026-06-01T10:00:00Z")
+	now := mustParseTime(t, "2026-06-01T10:00:00Z")
 	manifest := &model.ProjectManifest{
 		Project: model.ProjectMeta{
 			Name:      "test-proj",
@@ -132,7 +132,7 @@ func TestSaveAndLoadCharacterNote_NotFound(t *testing.T) {
 func TestUpdateManifestPhase(t *testing.T) {
 	dir := t.TempDir()
 
-	now := mustParseTime("2026-06-01T10:00:00Z")
+	now := mustParseTime(t, "2026-06-01T10:00:00Z")
 	manifest := &model.ProjectManifest{
 		Project: model.ProjectMeta{
 			Name:      "test-proj",
@@ -197,7 +197,9 @@ func TestRecordPhaseError(t *testing.T) {
 		t.Fatalf("SaveManifest: %v", err)
 	}
 
-	RecordPhaseError(dir, "test-proj", "scenes", errors.New("something went wrong"))
+	if err := RecordPhaseError(dir, "test-proj", "scenes", errors.New("something went wrong")); err != nil {
+		t.Fatalf("RecordPhaseError: %v", err)
+	}
 
 	loaded, err := LoadManifest(dir, "test-proj")
 	if err != nil {
@@ -210,13 +212,21 @@ func TestRecordPhaseError(t *testing.T) {
 	if loaded.Pipeline.Phases["scenes"].Status != model.PhaseFailed {
 		t.Errorf("expected scenes phase to be failed, got %q", loaded.Pipeline.Phases["scenes"].Status)
 	}
+	if loaded.Pipeline.Status != model.PhaseFailed {
+		t.Errorf("expected pipeline status failed, got %q", loaded.Pipeline.Status)
+	}
+	if loaded.Pipeline.CurrentPhase != model.PhaseNumbers["scenes"] {
+		t.Errorf("expected current phase scenes, got %d", loaded.Pipeline.CurrentPhase)
+	}
 	if loaded.Pipeline.Errors[0].Phase != "scenes" {
 		t.Errorf("expected phase 'scenes', got %q", loaded.Pipeline.Errors[0].Phase)
 	}
 }
 
 func TestRecordPhaseError_NoManifest(t *testing.T) {
-	RecordPhaseError(t.TempDir(), "nonexistent", "render", errors.New("test"))
+	if err := RecordPhaseError(t.TempDir(), "nonexistent", "render", errors.New("test")); err == nil {
+		t.Fatal("expected error for missing manifest")
+	}
 }
 
 func TestSaveCharacterNote_InvalidPath(t *testing.T) {
@@ -285,7 +295,9 @@ func TestRecordPhaseError_UpdatesFailedPhaseAndErrors(t *testing.T) {
 		t.Fatalf("SaveManifest: %v", err)
 	}
 
-	RecordPhaseError(dir, "test-proj", "render", errors.New("render failed"))
+	if err := RecordPhaseError(dir, "test-proj", "render", errors.New("render failed")); err != nil {
+		t.Fatalf("RecordPhaseError: %v", err)
+	}
 
 	loaded, err := LoadManifest(dir, "test-proj")
 	if err != nil {
@@ -312,8 +324,12 @@ func TestRecordPhaseError_AccumulatesMultiple(t *testing.T) {
 		t.Fatalf("SaveManifest: %v", err)
 	}
 
-	RecordPhaseError(dir, "test-proj", "sheets", errors.New("first error"))
-	RecordPhaseError(dir, "test-proj", "poses", errors.New("second error"))
+	if err := RecordPhaseError(dir, "test-proj", "sheets", errors.New("first error")); err != nil {
+		t.Fatalf("RecordPhaseError sheets: %v", err)
+	}
+	if err := RecordPhaseError(dir, "test-proj", "poses", errors.New("second error")); err != nil {
+		t.Fatalf("RecordPhaseError poses: %v", err)
+	}
 
 	loaded, err := LoadManifest(dir, "test-proj")
 	if err != nil {
@@ -325,10 +341,11 @@ func TestRecordPhaseError_AccumulatesMultiple(t *testing.T) {
 	}
 }
 
-func mustParseTime(s string) time.Time {
-	t, err := time.Parse(time.RFC3339, s)
+func mustParseTime(t *testing.T, s string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, s)
 	if err != nil {
-		panic(err)
+		t.Fatalf("parsing time %q: %v", s, err)
 	}
-	return t
+	return parsed
 }

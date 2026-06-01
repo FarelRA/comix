@@ -2,13 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
-	"github.com/comix/comix/internal/imagegen"
-	"github.com/comix/comix/internal/llm"
-	"github.com/comix/comix/internal/logger"
-	"github.com/comix/comix/internal/pipeline"
+	"github.com/FarelRA/comix/internal/imagegen"
+	"github.com/FarelRA/comix/internal/llm"
+	"github.com/FarelRA/comix/internal/pipeline"
 
 	"github.com/spf13/cobra"
 )
@@ -54,24 +54,22 @@ The pipeline consists of 6 phases:
 
 		llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).
 			WithBaseURL(cfg.OpenAI.BaseURL).
-			WithMaxRetries(cfg.OpenAI.LLM.MaxRetries).
-			WithRetryDelay(cfg.OpenAI.LLM.RetryBaseDelay)
+			WithMaxRetries(cfg.OpenAI.LLM.MaxRetries)
 
 		imgClient := imagegen.NewClient(
 			cfg.OpenAI.APIKey,
 			cfg.OpenAI.Image.Model,
 			cfg.OpenAI.Image.Quality,
-			cfg.OpenAI.Image.Thinking,
 		).WithBaseURL(cfg.OpenAI.BaseURL).
-			WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
-			WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay)
+			WithMaxRetries(cfg.OpenAI.Image.MaxRetries)
 
 		p := pipeline.NewPipeline(cfg, llmClient, imgClient)
 
 		source := pipeline.IngestSource{
-			BookDir:  bookDir,
-			Cover:    coverFile,
-			Chapters: parseChapterList(chapters),
+			ProjectName: projectName,
+			BookDir:     bookDir,
+			Cover:       coverFile,
+			Chapters:    parseChapterList(chapters),
 		}
 
 		if source.BookDir == "" && source.Cover == "" && len(source.Chapters) == 0 {
@@ -85,14 +83,14 @@ The pipeline consists of 6 phases:
 			return fmt.Errorf("--project is required when using --cover/--chapters")
 		}
 
-		logger.Info("starting Comix pipeline", "project", projectName)
+		slog.Info("starting Comix pipeline", "project", projectName)
 
 		if err := p.Run(cmd.Context(), projectName, source, nil, resume); err != nil {
 			return fmt.Errorf("pipeline failed: %w", err)
 		}
 
 		fmt.Printf("Pipeline completed successfully for project %q\n", projectName)
-		fmt.Printf("Output directory: %s\n", cfg.Pipeline.OutputDir+"/"+projectName)
+		fmt.Printf("Output directory: %s\n", filepath.Join(cfg.Pipeline.OutputDir, projectName))
 		return nil
 	},
 }

@@ -2,12 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
+	"path/filepath"
 
-	"github.com/comix/comix/internal/imagegen"
-	"github.com/comix/comix/internal/llm"
-	"github.com/comix/comix/internal/logger"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/pipeline"
+	"github.com/FarelRA/comix/internal/imagegen"
+	"github.com/FarelRA/comix/internal/llm"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/pipeline"
 
 	"github.com/spf13/cobra"
 )
@@ -40,21 +41,18 @@ maintain visual continuity. Results are saved to panels/*.png.`,
 
 		llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).
 			WithBaseURL(cfg.OpenAI.BaseURL).
-			WithMaxRetries(cfg.OpenAI.LLM.MaxRetries).
-			WithRetryDelay(cfg.OpenAI.LLM.RetryBaseDelay)
+			WithMaxRetries(cfg.OpenAI.LLM.MaxRetries)
 
 		imgClient := imagegen.NewClient(
 			cfg.OpenAI.APIKey,
 			cfg.OpenAI.Image.Model,
 			cfg.OpenAI.Image.Quality,
-			cfg.OpenAI.Image.Thinking,
 		).WithBaseURL(cfg.OpenAI.BaseURL).
-			WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
-			WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay)
+			WithMaxRetries(cfg.OpenAI.Image.MaxRetries)
 
 		p := pipeline.NewPipeline(cfg, llmClient, imgClient)
 
-		logger.Info("rendering scenes", "project", renderProject)
+		slog.Info("rendering scenes", "project", renderProject)
 
 		source := pipeline.IngestSource{}
 		if err := p.Run(cmd.Context(), renderProject, source, []string{model.PhaseNameRender}, true); err != nil {
@@ -62,7 +60,7 @@ maintain visual continuity. Results are saved to panels/*.png.`,
 		}
 
 		fmt.Printf("Render completed for project %q\n", renderProject)
-		fmt.Printf("Panels: %s\n", cfg.Pipeline.OutputDir+"/"+renderProject+"/panels")
+		fmt.Printf("Panels: %s\n", filepath.Join(cfg.Pipeline.OutputDir, renderProject, "panels"))
 		return nil
 	},
 }

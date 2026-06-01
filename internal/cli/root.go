@@ -2,13 +2,13 @@ package cli
 
 import (
 	"context"
+	"log/slog"
 	"os"
 
-	"github.com/comix/comix/internal/config"
-	"github.com/comix/comix/internal/logger"
+	"github.com/FarelRA/comix/internal/config"
+	"github.com/FarelRA/comix/internal/logger"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -35,7 +35,7 @@ func SetRootContext(ctx context.Context) {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		logger.Error("command failed", "error", err)
+		slog.Error("command failed", "error", err)
 		os.Exit(1)
 	}
 }
@@ -50,9 +50,15 @@ func init() {
 }
 
 func loadConfig() (*config.Config, error) {
-	cfg, err := config.LoadConfig(cfgFile)
+	cfg, err := config.LoadConfigWithOverrides(cfgFile, rootCmd.PersistentFlags())
 	if err != nil {
 		return nil, err
+	}
+	if rootCmd.PersistentFlags().Changed("output") {
+		cfg.Pipeline.OutputDir = outputDir
+	}
+	if rootCmd.PersistentFlags().Changed("log-format") {
+		cfg.Logging.Format = logFormat
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -61,22 +67,5 @@ func loadConfig() (*config.Config, error) {
 }
 
 func initConfig() {
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		viper.AddConfigPath(".")
-		viper.SetConfigName("config")
-	}
-
-	viper.SetEnvPrefix("COMIX")
-	viper.AutomaticEnv()
-
-	viper.BindPFlag("pipeline.output_dir", rootCmd.PersistentFlags().Lookup("output"))
-	viper.BindPFlag("logging.format", rootCmd.PersistentFlags().Lookup("log-format"))
-
-	if err := viper.ReadInConfig(); err == nil {
-		logger.Info("using config file", "path", viper.ConfigFileUsed())
-	}
-
-	logger.Configure(viper.GetString("logging.level"), viper.GetString("logging.format"), verbose)
+	logger.Configure("info", logFormat, verbose)
 }

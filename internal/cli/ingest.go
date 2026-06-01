@@ -2,13 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 
-	"github.com/comix/comix/internal/imagegen"
-	"github.com/comix/comix/internal/llm"
-	"github.com/comix/comix/internal/logger"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/pipeline"
+	"github.com/FarelRA/comix/internal/imagegen"
+	"github.com/FarelRA/comix/internal/llm"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/pipeline"
 
 	"github.com/spf13/cobra"
 )
@@ -61,31 +61,29 @@ This is Phase 1 of the Comix pipeline. After ingestion, the project is ready for
 		if project == "" {
 			return fmt.Errorf("--project is required when using --cover/--chapters")
 		}
+		source.ProjectName = project
 
 		llmClient := llm.NewClient(cfg.OpenAI.APIKey, cfg.OpenAI.LLM.Model, cfg.OpenAI.LLM.Thinking).
 			WithBaseURL(cfg.OpenAI.BaseURL).
-			WithMaxRetries(cfg.OpenAI.LLM.MaxRetries).
-			WithRetryDelay(cfg.OpenAI.LLM.RetryBaseDelay)
+			WithMaxRetries(cfg.OpenAI.LLM.MaxRetries)
 
 		imgClient := imagegen.NewClient(
 			cfg.OpenAI.APIKey,
 			cfg.OpenAI.Image.Model,
 			cfg.OpenAI.Image.Quality,
-			cfg.OpenAI.Image.Thinking,
 		).WithBaseURL(cfg.OpenAI.BaseURL).
-			WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
-			WithRetryDelay(cfg.OpenAI.Image.RetryBaseDelay)
+			WithMaxRetries(cfg.OpenAI.Image.MaxRetries)
 
 		p := pipeline.NewPipeline(cfg, llmClient, imgClient)
 
-		logger.Info("ingesting files", "project", project)
+		slog.Info("ingesting files", "project", project)
 
 		if err := p.Run(cmd.Context(), project, source, []string{model.PhaseNameIngest}, false); err != nil {
 			return fmt.Errorf("ingest failed: %w", err)
 		}
 
 		fmt.Printf("Ingestion completed for project %q\n", project)
-		fmt.Printf("Output directory: %s\n", cfg.Pipeline.OutputDir+"/"+project)
+		fmt.Printf("Output directory: %s\n", filepath.Join(cfg.Pipeline.OutputDir, project))
 		return nil
 	},
 }

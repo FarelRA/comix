@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/comix/comix/internal/imagegen"
-	"github.com/comix/comix/internal/logger"
-	"github.com/comix/comix/internal/model"
-	"github.com/comix/comix/internal/storage"
+	"github.com/FarelRA/comix/internal/imagegen"
+	"github.com/FarelRA/comix/internal/model"
+	"github.com/FarelRA/comix/internal/storage"
+	"golang.org/x/sync/errgroup"
 )
 
 func (p *Pipeline) GeneratePoses(ctx context.Context, manifest *model.ProjectManifest, note *model.CharacterNote) error {
@@ -26,57 +27,47 @@ func (p *Pipeline) GeneratePoses(ctx context.Context, manifest *model.ProjectMan
 		maxConcurrent = 1
 	}
 
-	sem := make(chan struct{}, maxConcurrent)
-	errc := make(chan error, len(note.Characters))
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrent)
+	errs := make(chan string, len(note.Characters))
 
 	for _, char := range note.Characters {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case sem <- struct{}{}:
-		}
-
-		go func(char model.Character) {
-			defer func() { <-sem }()
-
+		char := char
+		g.Go(func() error {
 			sheetPath := filepath.Join(storage.SheetsDir(outputDir, projectName), fmt.Sprintf("%s_3x2.png", char.ID))
 			sheetImage, err := loadImage(sheetPath)
 			if err != nil {
-				errc <- fmt.Errorf("loading sheet for %q: %w", char.ID, err)
-				return
+				errs <- fmt.Sprintf("loading sheet for %q: %v", char.ID, err)
+				return err
 			}
 
 			prompt := imagegen.PromptPoseSheet(char.Name)
 			result, err := p.imgGen.Edit(ctx, sheetImage, prompt, p.cfg.OpenAI.Image.Size.Poses)
 			if err != nil {
-				errc <- fmt.Errorf("generating poses for %q: %w", char.ID, err)
-				return
+				errs <- fmt.Sprintf("generating poses for %q: %v", char.ID, err)
+				return err
 			}
 
 			posePath := filepath.Join(storage.PosesDir(outputDir, projectName), fmt.Sprintf("%s_5x5.png", char.ID))
 			if err := storage.SavePNG(posePath, result.Image); err != nil {
-				errc <- fmt.Errorf("saving poses for %q: %w", char.ID, err)
-				return
+				errs <- fmt.Sprintf("saving poses for %q: %v", char.ID, err)
+				return err
 			}
 
-			logger.Info("generated 5x5 pose sheet", "character", char.Name, "id", char.ID)
-			errc <- nil
-		}(char)
+			slog.Info("generated 5x5 pose sheet", "character", char.Name, "id", char.ID)
+			return nil
+		})
 	}
 
-	var errs []string
-	for range note.Characters {
-		if err := <-errc; err != nil {
-			errs = append(errs, err.Error())
-			cancel()
-		}
-	}
+	_ = g.Wait()
+	close(errs)
 
-	if len(errs) > 0 {
-		return fmt.Errorf("pose generation completed with errors: %s", strings.Join(errs, "; "))
+	var messages []string
+	for msg := range errs {
+		messages = append(messages, msg)
+	}
+	if len(messages) > 0 {
+		return fmt.Errorf("pose generation completed with errors: %s", strings.Join(messages, "; "))
 	}
 
 	return nil
