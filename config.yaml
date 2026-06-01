@@ -12,7 +12,10 @@ openai:
   image:
     model: "gpt-image-2"
     quality: "medium"
-    size: "1024x1024"
+    size:
+      sheet: "2880x1920"
+      poses: "2048x2048"
+      panel: "1632x3808"
     thinking: "medium"
     max_retries: 5
     retry_base_delay: 2s

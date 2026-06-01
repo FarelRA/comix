@@ -147,7 +147,7 @@ func TestGenerateSheets_Success(t *testing.T) {
 
 	cfg := testConfig(outputDir)
 	mockSrv := newMockImageServer(t)
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -181,7 +181,7 @@ func TestGeneratePoses_Success(t *testing.T) {
 
 	cfg := testConfig(outputDir)
 	mockSrv := newMockImageServer(t)
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -215,7 +215,7 @@ func TestGeneratePoses_MissingSheet(t *testing.T) {
 
 	cfg := testConfig(outputDir)
 	mockSrv := newMockImageServer(t)
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -235,7 +235,7 @@ func TestRenderScenes_FirstSceneGenerate(t *testing.T) {
 
 	mockSrv := newMockImageServer(t)
 	defer mockSrv.Close()
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -277,7 +277,7 @@ func TestRenderScenes_SequentialEdit(t *testing.T) {
 	}))
 	defer mockSrv.Close()
 
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -307,7 +307,7 @@ func TestRenderScenes_ResumeSkipsExisting(t *testing.T) {
 	}))
 	defer mockSrv.Close()
 
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -362,7 +362,7 @@ func TestPipelineRun_WithAllPhases(t *testing.T) {
 		},
 	}
 
-	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium").
+	imgClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium").
 		WithBaseURL(mockSrv.URL).
 		WithHTTPClient(mockSrv.Client())
 
@@ -421,6 +421,13 @@ func testConfig(outputDir string) *config.Config {
 		OpenAI: config.OpenAIConfig{
 			APIKey: "sk-test",
 			LLM: config.LLMConfig{},
+			Image: config.ImageConfig{
+				Size: config.ImageSizeConfig{
+					Sheet: "2880x1920",
+					Poses: "2048x2048",
+					Panel: "1632x3808",
+				},
+			},
 		},
 		Pipeline: config.PipelineConfig{
 			OutputDir:           outputDir,

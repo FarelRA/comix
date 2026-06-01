@@ -41,7 +41,7 @@ func (p *Pipeline) GenerateSheets(ctx context.Context, manifest *model.ProjectMa
 			defer func() { <-sem }()
 
 			prompt := imagegen.PromptBaseSheet(char.Name, char.PhysicalDescription)
-			result, err := p.imgGen.Generate(ctx, prompt)
+			result, err := p.imgGen.Generate(ctx, prompt, p.cfg.OpenAI.Image.Size.Sheet)
 			if err != nil {
 				errc <- fmt.Errorf("generating sheet for %q: %w", char.ID, err)
 				return

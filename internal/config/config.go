@@ -33,12 +33,18 @@ type LLMConfig struct {
 }
 
 type ImageConfig struct {
-	Model          string        `mapstructure:"model"`
-	Quality        string        `mapstructure:"quality"`
-	Size           string        `mapstructure:"size"`
-	Thinking       string        `mapstructure:"thinking"`
-	MaxRetries     int           `mapstructure:"max_retries"`
-	RetryBaseDelay time.Duration `mapstructure:"retry_base_delay"`
+	Model          string          `mapstructure:"model"`
+	Quality        string          `mapstructure:"quality"`
+	Size           ImageSizeConfig `mapstructure:"size"`
+	Thinking       string          `mapstructure:"thinking"`
+	MaxRetries     int             `mapstructure:"max_retries"`
+	RetryBaseDelay time.Duration   `mapstructure:"retry_base_delay"`
+}
+
+type ImageSizeConfig struct {
+	Sheet string `mapstructure:"sheet"`
+	Poses string `mapstructure:"poses"`
+	Panel string `mapstructure:"panel"`
 }
 
 type PipelineConfig struct {
@@ -123,6 +129,15 @@ func (c *Config) Validate() error {
 	if !validThinking[c.OpenAI.Image.Thinking] {
 		errs = append(errs, fmt.Sprintf("openai.image.thinking must be one of: off, low, medium, high (got %q)", c.OpenAI.Image.Thinking))
 	}
+	if c.OpenAI.Image.Size.Sheet == "" {
+		errs = append(errs, "openai.image.size.sheet must not be empty")
+	}
+	if c.OpenAI.Image.Size.Poses == "" {
+		errs = append(errs, "openai.image.size.poses must not be empty")
+	}
+	if c.OpenAI.Image.Size.Panel == "" {
+		errs = append(errs, "openai.image.size.panel must not be empty")
+	}
 	if c.OpenAI.Image.MaxRetries < 0 {
 		errs = append(errs, "openai.image.max_retries must be >= 0")
 	}
@@ -178,7 +193,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("openai.llm.retry_base_delay", "1s")
 	v.SetDefault("openai.image.model", "gpt-image-2")
 	v.SetDefault("openai.image.quality", "medium")
-	v.SetDefault("openai.image.size", "1024x1024")
+	v.SetDefault("openai.image.size.sheet", "2880x1920")
+	v.SetDefault("openai.image.size.poses", "2048x2048")
+	v.SetDefault("openai.image.size.panel", "1632x3808")
 	v.SetDefault("openai.image.thinking", "medium")
 	v.SetDefault("openai.image.max_retries", 5)
 	v.SetDefault("openai.image.retry_base_delay", "2s")

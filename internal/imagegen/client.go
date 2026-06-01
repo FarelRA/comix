@@ -30,7 +30,6 @@ type Client struct {
 	apiKey     string
 	model      string
 	quality    string
-	size       string
 	thinking   string
 	httpClient *http.Client
 	maxRetries int
@@ -76,17 +75,16 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("openai image api error: status=%d type=%q code=%q message=%q", e.StatusCode, e.Type, e.Code, e.Message)
 }
 
-func NewClient(apiKey, model, quality, size, thinking string) *Client {
+func NewClient(apiKey, model, quality, thinking string) *Client {
 	return &Client{
 		apiKey:     apiKey,
 		model:      model,
 		quality:    quality,
-		size:       size,
 		thinking:   thinking,
 		httpClient: &http.Client{Timeout: 120 * time.Second},
 		maxRetries: 5,
 		retryDelay: 2 * time.Second,
-		baseURL: "https://api.openai.com/v1",
+		baseURL:    "https://api.openai.com/v1",
 	}
 }
 
@@ -110,13 +108,13 @@ func (c *Client) WithBaseURL(url string) *Client {
 	return c
 }
 
-func (c *Client) Generate(ctx context.Context, prompt string) (*ImageResult, error) {
+func (c *Client) Generate(ctx context.Context, prompt, size string) (*ImageResult, error) {
 	body := generateRequest{
 		Model:    c.model,
 		Prompt:   prompt,
 		N:        1,
 		Quality:  c.quality,
-		Size:     c.size,
+		Size:     size,
 		Thinking: c.thinking,
 	}
 
@@ -145,7 +143,7 @@ func (c *Client) Generate(ctx context.Context, prompt string) (*ImageResult, err
 	return nil, fmt.Errorf("image generation failed after %d retries: %w", c.maxRetries, lastErr)
 }
 
-func (c *Client) Edit(ctx context.Context, input image.Image, prompt string) (*ImageResult, error) {
+func (c *Client) Edit(ctx context.Context, input image.Image, prompt, size string) (*ImageResult, error) {
 	var result *ImageResult
 	var lastErr error
 
@@ -158,7 +156,7 @@ func (c *Client) Edit(ctx context.Context, input image.Image, prompt string) (*I
 			}
 		}
 
-		result, lastErr = c.doEdit(ctx, input, prompt)
+		result, lastErr = c.doEdit(ctx, input, prompt, size)
 		if lastErr == nil {
 			return result, nil
 		}
@@ -203,7 +201,7 @@ func (c *Client) doGenerate(ctx context.Context, body generateRequest) (*ImageRe
 	return c.parseImageResponse(respBody)
 }
 
-func (c *Client) doEdit(ctx context.Context, input image.Image, prompt string) (*ImageResult, error) {
+func (c *Client) doEdit(ctx context.Context, input image.Image, prompt, size string) (*ImageResult, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
@@ -216,7 +214,7 @@ func (c *Client) doEdit(ctx context.Context, input image.Image, prompt string) (
 	if err := writer.WriteField("n", "1"); err != nil {
 		return nil, fmt.Errorf("writing n field: %w", err)
 	}
-	if err := writer.WriteField("size", c.size); err != nil {
+	if err := writer.WriteField("size", size); err != nil {
 		return nil, fmt.Errorf("writing size field: %w", err)
 	}
 	if err := writer.WriteField("quality", c.quality); err != nil {

@@ -60,10 +60,10 @@ func (p *Pipeline) RenderScenes(ctx context.Context, manifest *model.ProjectMani
 
 		if prevPanel == nil {
 			prompt := imagegen.PromptFirstScene(sceneDesc, charRefs)
-			result, err = p.imgGen.Generate(ctx, prompt)
+			result, err = p.imgGen.Generate(ctx, prompt, p.cfg.OpenAI.Image.Size.Panel)
 		} else {
 			prompt := imagegen.PromptNextScene(prevSceneDesc, sceneDesc, charRefs)
-			result, err = p.imgGen.Edit(ctx, prevPanel, prompt)
+			result, err = p.imgGen.Edit(ctx, prevPanel, prompt, p.cfg.OpenAI.Image.Size.Panel)
 		}
 
 		if err != nil {

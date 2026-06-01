@@ -28,7 +28,7 @@ func testServer(t *testing.T, outputDir string) *Server {
 	t.Helper()
 	cfg := testConfig(outputDir)
 	llmClient := llm.NewClient("sk-test", "gpt-5.4-mini", "medium")
-	imgGenClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "1024x1024", "medium")
+	imgGenClient := imagegen.NewClient("sk-test", "gpt-image-2", "medium", "medium")
 	p := pipeline.NewPipeline(cfg, llmClient, imgGenClient)
 	return NewServer(cfg, p)
 }
@@ -38,6 +38,13 @@ func testConfig(outputDir string) *config.Config {
 		OpenAI: config.OpenAIConfig{
 			APIKey: "sk-test",
 			LLM: config.LLMConfig{},
+			Image: config.ImageConfig{
+				Size: config.ImageSizeConfig{
+					Sheet: "2880x1920",
+					Poses: "2048x2048",
+					Panel: "1632x3808",
+				},
+			},
 		},
 		Pipeline: config.PipelineConfig{
 			OutputDir:           outputDir,

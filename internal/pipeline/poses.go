@@ -50,7 +50,7 @@ func (p *Pipeline) GeneratePoses(ctx context.Context, manifest *model.ProjectMan
 			}
 
 			prompt := imagegen.PromptPoseSheet(char.Name)
-			result, err := p.imgGen.Edit(ctx, sheetImage, prompt)
+			result, err := p.imgGen.Edit(ctx, sheetImage, prompt, p.cfg.OpenAI.Image.Size.Poses)
 			if err != nil {
 				errc <- fmt.Errorf("generating poses for %q: %w", char.ID, err)
 				return

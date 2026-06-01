@@ -64,13 +64,13 @@ func TestGenerate_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(0)
 
 
-	result, err := client.Generate(context.Background(), "test prompt")
+	result, err := client.Generate(context.Background(), "test prompt", "2048x2048")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -105,13 +105,13 @@ func TestGenerate_FromURL(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(0)
 
 
-	result, err := client.Generate(context.Background(), "test prompt")
+	result, err := client.Generate(context.Background(), "test prompt", "2048x2048")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -139,14 +139,14 @@ func TestGenerate_RetryOn429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(5).
 		WithRetryDelay(time.Millisecond)
 
 
-	_, err := client.Generate(context.Background(), "test")
+	_, err := client.Generate(context.Background(), "test", "2048x2048")
 	if err != nil {
 		t.Fatalf("Generate failed after retries: %v", err)
 	}
@@ -165,14 +165,14 @@ func TestGenerate_NonRetryable400(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(3).
 		WithRetryDelay(time.Millisecond)
 
 
-	_, err := client.Generate(context.Background(), "test")
+	_, err := client.Generate(context.Background(), "test", "2048x2048")
 	if err == nil {
 		t.Fatal("expected error for 400")
 	}
@@ -211,8 +211,8 @@ func TestEdit_Success(t *testing.T) {
 		if r.FormValue("n") != "1" {
 			t.Errorf("expected n=1, got %s", r.FormValue("n"))
 		}
-		if r.FormValue("size") != "1024x1024" {
-			t.Errorf("expected 1024x1024, got %s", r.FormValue("size"))
+		if r.FormValue("size") != "2048x2048" {
+			t.Errorf("expected 2048x2048, got %s", r.FormValue("size"))
 		}
 
 		file, _, err := r.FormFile("image")
@@ -231,14 +231,14 @@ func TestEdit_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(0)
 
 
 	input := createTestPNG()
-	result, err := client.Edit(context.Background(), input, "edit prompt")
+	result, err := client.Edit(context.Background(), input, "edit prompt", "2048x2048")
 	if err != nil {
 		t.Fatalf("Edit failed: %v", err)
 	}
@@ -258,7 +258,7 @@ func TestParseImageResponse_FromURL(t *testing.T) {
 	}))
 	defer imgServer.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithHTTPClient(imgServer.Client()).
 		WithMaxRetries(0)
 
@@ -273,7 +273,7 @@ func TestParseImageResponse_FromURL(t *testing.T) {
 }
 
 func TestParseImageResponse_NoB64OrURL(t *testing.T) {
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithMaxRetries(0)
 
 
@@ -320,7 +320,7 @@ func TestParseAPIError_NonJSONBody(t *testing.T) {
 }
 
 func TestParseImageResponse_InvalidJSON(t *testing.T) {
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithMaxRetries(0)
 
 
@@ -331,7 +331,7 @@ func TestParseImageResponse_InvalidJSON(t *testing.T) {
 }
 
 func TestParseImageResponse_InvalidBase64(t *testing.T) {
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithMaxRetries(0)
 
 
@@ -351,7 +351,7 @@ func TestEdit_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(0)
@@ -360,7 +360,7 @@ func TestEdit_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := client.Edit(ctx, createTestPNG(), "test")
+	_, err := client.Edit(ctx, createTestPNG(), "test", "2048x2048")
 	if err == nil {
 		t.Fatal("expected error for cancelled context")
 	}
@@ -376,7 +376,7 @@ func TestGenerate_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(0)
@@ -385,7 +385,7 @@ func TestGenerate_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := client.Generate(ctx, "test")
+	_, err := client.Generate(ctx, "test", "2048x2048")
 	if err == nil {
 		t.Fatal("expected error for cancelled context")
 	}
@@ -398,13 +398,13 @@ func TestGenerate_EmptyData(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(0)
 
 
-	_, err := client.Generate(context.Background(), "test")
+	_, err := client.Generate(context.Background(), "test", "2048x2048")
 	if err == nil {
 		t.Fatal("expected error for empty data")
 	}
@@ -419,13 +419,13 @@ func TestGenerate_NoImageInData(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(0)
 
 
-	_, err := client.Generate(context.Background(), "test")
+	_, err := client.Generate(context.Background(), "test", "2048x2048")
 	if err == nil {
 		t.Fatal("expected error for data with no image content")
 	}
@@ -450,7 +450,7 @@ func TestEdit_RetryOn503(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithBaseURL(server.URL).
 		WithHTTPClient(server.Client()).
 		WithMaxRetries(3).
@@ -458,7 +458,7 @@ func TestEdit_RetryOn503(t *testing.T) {
 
 
 	input := createTestPNG()
-	_, err := client.Edit(context.Background(), input, "test")
+	_, err := client.Edit(context.Background(), input, "test", "2048x2048")
 	if err != nil {
 		t.Fatalf("Edit failed after retries: %v", err)
 	}
@@ -469,7 +469,7 @@ func TestEdit_RetryOn503(t *testing.T) {
 }
 
 func TestBackoffDuration(t *testing.T) {
-	client := NewClient("test-key", "gpt-image-2", "medium", "1024x1024", "medium").
+	client := NewClient("test-key", "gpt-image-2", "medium", "medium").
 		WithRetryDelay(time.Second)
 
 	tests := []struct {

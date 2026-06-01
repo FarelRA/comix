@@ -19,13 +19,16 @@ func validConfig() *Config {
 				RetryBaseDelay: time.Second,
 			},
 			Image: ImageConfig{
-				Model:          "gpt-image-2",
-				Quality:        "medium",
-				Size:           "1024x1024",
+				Model:   "gpt-image-2",
+				Quality: "medium",
+				Size: ImageSizeConfig{
+					Sheet: "2880x1920",
+					Poses: "2048x2048",
+					Panel: "1632x3808",
+				},
 				Thinking:       "medium",
 				MaxRetries:     5,
 				RetryBaseDelay: 2 * time.Second,
-	
 			},
 		},
 		Pipeline: PipelineConfig{

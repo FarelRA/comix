@@ -72,7 +72,6 @@ func runPhase(cmd *cobra.Command, project, phase string) error {
 		cfg.OpenAI.APIKey,
 		cfg.OpenAI.Image.Model,
 		cfg.OpenAI.Image.Quality,
-		cfg.OpenAI.Image.Size,
 		cfg.OpenAI.Image.Thinking,
 	).WithBaseURL(cfg.OpenAI.BaseURL).
 		WithMaxRetries(cfg.OpenAI.Image.MaxRetries).
