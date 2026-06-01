@@ -1,10 +1,26 @@
-# Comix — Comic Creator Studio
+# Comix
 
-Comix converts text-based novels (markdown) into sequential comic panels using generative AI. It runs as both an HTTP server and a CLI tool.
+Comix turns text-based novels into sequential comic panels using AI. Give it your story as markdown files, and it handles character extraction, scene breakdown, character sheet generation, and panel rendering — all in one command.
 
-## Quickstart
+## Quick start
 
-### 1. Install
+```bash
+export OPENAI_API_KEY=sk-...
+comix run --book-dir ./novels/alice/ --project alice
+# Output: comic panels saved to comix-output/alice/panels/
+```
+
+## Features
+
+- **Full pipeline automation** — goes from raw text to comic panels in one command
+- **Character consistency** — generates reference sheets from 6 angles and dynamic pose grids so each character looks the same in every panel
+- **Scene-aware rendering** — each panel is rendered with knowledge of the previous one for visual continuity
+- **Checkpoint resume** — pick up where you left off if a run is interrupted
+- **CLI + HTTP server** — run locally or deploy as a web service
+
+## Installation
+
+Requires **Go 1.26+** and an **OpenAI API key** with access to GPT-4o and gpt-image-2.
 
 ```bash
 go install github.com/comix/comix/cmd/comix@latest
@@ -13,85 +29,44 @@ go install github.com/comix/comix/cmd/comix@latest
 Or build from source:
 
 ```bash
-git clone https://github.com/comix/comix.git
+git clone https://github.com/FarelRA/comix.git
 cd comix
 make build
 ```
 
-### 2. Set your OpenAI API key
+## Usage
+
+### Run the full pipeline
 
 ```bash
 export OPENAI_API_KEY=sk-...
-```
-
-### 3. Prepare your novel
-
-Create a directory with your novel as markdown files:
-
-```
-novels/alice/
-├── cover.md
-├── chapter_01.md
-├── chapter_02.md
-└── ...
-```
-
-### 4. Run the full pipeline
-
-```bash
 comix run --book-dir ./novels/alice/ --project alice
 ```
 
-### 5. View output
+Comix processes your novel in 6 phases:
 
-```
-comix-output/alice/
-├── project.yaml
-├── raw/
-├── state/
-│   ├── characters.json
-│   └── scenes.json
-├── sheets/
-│   └── ..._3x2.png
-├── poses/
-│   └── ..._5x5.png
-└── panels/
-    └── scene_*.png
-```
+| Phase | What happens |
+|-------|-------------|
+| 1. Ingestion | Reads cover and chapter markdown files |
+| 2. Characters | AI identifies characters and their descriptions |
+| 3. Scenes | AI breaks chapters into visual scenes |
+| 4. Sheets | Generates 3×2 character reference grids from 6 angles |
+| 5. Poses | Creates 5×5 dynamic pose sheets for each character |
+| 6. Render | Produces sequential comic panels |
 
-## CLI Reference
-
-### Global Flags
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--config` | `./config.yaml` | Config file path |
-| `-o, --output` | `./comix-output` | Output directory |
-| `-v, --verbose` | `false` | Enable verbose debug logging |
-| `--log-format` | `text` | Log format: `text` or `json` |
-
-### Commands
-
-#### `comix run` — Full pipeline
+### Start the HTTP server
 
 ```bash
-# From book directory
-comix run --book-dir ./novels/alice/ --project alice
+comix serve --port 8080
+```
 
-# With explicit file paths
-comix run --cover ./cover.md --chapters ch1.md,ch2.md --project alice
+### Resume an interrupted run
 
-# Resume from checkpoint
+```bash
 comix run --book-dir ./novels/alice/ --project alice --resume
 ```
 
-#### `comix serve` — HTTP server
-
-```bash
-comix serve --port 8080 --host 0.0.0.0
-```
-
-#### Individual phases
+### Run individual phases
 
 ```bash
 comix ingest --book-dir ./novels/alice/ --project alice
@@ -102,98 +77,33 @@ comix generate poses --project alice
 comix render --project alice
 ```
 
-#### Project management
+### Output structure
 
-```bash
-comix list                    # List all projects
-comix status --project alice  # Show pipeline status
 ```
-
-## HTTP API
-
-Start the server:
-
-```bash
-comix serve
+comix-output/alice/
+├── raw/       # your original markdown files
+├── state/     # extracted characters and scene descriptions
+├── sheets/    # 3×2 character reference grids
+├── poses/     # 5×5 dynamic pose sheets
+└── panels/    # the final comic panels
 ```
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/projects` | Create project |
-| POST | `/api/projects/:id/ingest` | Upload markdown files |
-| POST | `/api/projects/:id/run` | Execute full pipeline |
-| POST | `/api/projects/:id/run/:phase` | Execute single phase |
-| GET | `/api/projects/:id/status` | Pipeline status |
-| GET | `/api/projects/:id/output` | List artifacts |
-| GET | `/api/projects/:id/output/*` | Download file |
-| DELETE | `/api/projects/:id` | Delete project |
-| GET | `/api/projects` | List projects |
-| GET | `/api/health` | Health check |
 
 ## Configuration
 
-Comix uses a `config.yaml` file with environment variable overrides. See `config.yaml` for all options.
-
-Key settings:
-
-| Config Key | Env Var | Default | Description |
-|------------|---------|---------|-------------|
-| `openai.api_key` | `OPENAI_API_KEY` | — | OpenAI API key |
-| `openai.llm.model` | — | `gpt-4o` | LLM model for extraction |
-| `openai.image.model` | — | `gpt-image-2` | Image generation model |
-| `openai.image.quality` | — | `medium` | Image quality (low/medium/high) |
-| `pipeline.output_dir` | `COMIX_OUTPUT` | `./comix-output` | Output directory |
-| `server.port` | — | `8080` | HTTP server port |
-| `logging.level` | — | `info` | Log level (debug/info/warn/error) |
-| `logging.format` | — | `text` | Log format (text/json) |
-
-## Pipeline Phases
-
-| Phase | Description | Output |
-|-------|-------------|--------|
-| 1. Ingestion | Read & validate markdown files | `raw/*.md`, `project.yaml` |
-| 2. Characters | LLM extracts characters | `state/characters.json` |
-| 3. Scenes | LLM extracts scene descriptions | `state/scenes.json` |
-| 4. Base Sheets | Generate 3×2 character reference grids | `sheets/*_3x2.png` |
-| 5. Dynamic Poses | Generate 5×5 pose grids | `poses/*_5x5.png` |
-| 6. Rendering | Render sequential comic panels | `panels/scene_*.png` |
-
-## Troubleshooting
-
-### "OPENAI_API_KEY is not set"
-
-Set your key: `export OPENAI_API_KEY=sk-...` or add it to `config.yaml`:
-```yaml
-openai:
-  api_key: sk-...
-```
-
-### Pipeline fails with rate limit errors
-
-gpt-image-2 has rate limits (default 5 images/min). Adjust in config:
-```yaml
-openai:
-  image:
-    rate_limit_rpm: 3
-```
-
-### Resume after interruption
+Your OpenAI API key can be set via environment variable or in `config.yaml`:
 
 ```bash
-comix run --book-dir ./novels/alice/ --project alice --resume
+export OPENAI_API_KEY=sk-...
 ```
 
-The pipeline checks for existing checkpoints and skips completed phases.
+See `config.yaml` for all available options (LLM model, image quality, server port, logging, etc.).
 
-### Enable debug logging
+## Contributing
 
-```bash
-comix run --book-dir ./novels/alice/ --project alice --verbose
-```
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-Or in config:
-```yaml
-logging:
-  level: debug
-  format: json
-```
+Please make sure to update tests as appropriate and run `make lint` before submitting.
+
+## License
+
+[GNU General Public License v3.0](LICENSE)
