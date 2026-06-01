@@ -85,12 +85,9 @@ func (c *Client) WithBaseURL(url string) *Client {
 	return c
 }
 
-func (c *Client) Generate(ctx context.Context, prompt, size string, references ...image.Image) (*ImageResult, error) {
+func (c *Client) Generate(ctx context.Context, prompt, size string) (*ImageResult, error) {
 	ctx, span := tracer.Start(ctx, "image.generate")
 	defer span.End()
-	if len(references) > 0 {
-		return c.GenerateWithReferences(ctx, prompt, size, references...)
-	}
 	resp, err := c.getClient().Images.Generate(ctx, openai.ImageGenerateParams{
 		Model:   openai.ImageModel(c.model),
 		Prompt:  prompt,
@@ -105,22 +102,10 @@ func (c *Client) Generate(ctx context.Context, prompt, size string, references .
 }
 
 func (c *Client) GenerateWithReferences(ctx context.Context, prompt, size string, references ...image.Image) (*ImageResult, error) {
-	if len(references) == 0 {
-		return c.Generate(ctx, prompt, size)
-	}
-	return c.editImages(ctx, references, prompt, size)
-}
-
-func (c *Client) Edit(ctx context.Context, input image.Image, prompt, size string, additionalRefs ...image.Image) (*ImageResult, error) {
-	ctx, span := tracer.Start(ctx, "image.edit")
+	ctx, span := tracer.Start(ctx, "image.generate_with_references")
 	defer span.End()
-	images := append([]image.Image{input}, additionalRefs...)
-	return c.editImages(ctx, images, prompt, size)
-}
-
-func (c *Client) editImages(ctx context.Context, images []image.Image, prompt, size string) (*ImageResult, error) {
-	readers := make([]io.Reader, 0, len(images))
-	for _, img := range images {
+	readers := make([]io.Reader, 0, len(references))
+	for _, img := range references {
 		reader, err := imageToPNGReader(img)
 		if err != nil {
 			return nil, fmt.Errorf("encoding input image: %w", err)
