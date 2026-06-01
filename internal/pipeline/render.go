@@ -15,6 +15,8 @@ import (
 	"github.com/comix/comix/internal/storage"
 )
 
+const charRefThreshold = 7
+
 func (p *Pipeline) RenderScenes(ctx context.Context, manifest *model.ProjectManifest, note *model.CharacterNote, scenes *model.SceneList) error {
 	if p.imgGen == nil {
 		return fmt.Errorf("image generation client not configured")
@@ -52,7 +54,13 @@ func (p *Pipeline) RenderScenes(ctx context.Context, manifest *model.ProjectMani
 			continue
 		}
 
-		charRefs := p.buildSceneCharacterRefs(scene, charIndex)
+		charImages := p.loadCharacterRefImages(projectName, scene, charIndex)
+
+		imageStartIdx := 1
+		if prevPanel != nil {
+			imageStartIdx = 2
+		}
+		charRefs := p.buildSceneCharacterRefs(scene, charIndex, imageStartIdx)
 		sceneDesc := p.buildSceneDescription(scene)
 
 		var result *imagegen.ImageResult
@@ -60,10 +68,18 @@ func (p *Pipeline) RenderScenes(ctx context.Context, manifest *model.ProjectMani
 
 		if prevPanel == nil {
 			prompt := imagegen.PromptFirstScene(sceneDesc, charRefs)
-			result, err = p.imgGen.Generate(ctx, prompt, p.cfg.OpenAI.Image.Size.Panel)
+			if len(charImages) > 0 {
+				prompt += "\n\nReference images are attached for character appearance. See [image N] tags above."
+			}
+			result, err = p.imgGen.Generate(ctx, prompt, p.cfg.OpenAI.Image.Size.Panel, charImages...)
 		} else {
 			prompt := imagegen.PromptNextScene(prevSceneDesc, sceneDesc, charRefs)
-			result, err = p.imgGen.Edit(ctx, prevPanel, prompt, p.cfg.OpenAI.Image.Size.Panel)
+			if len(charImages) > 0 {
+				prompt += "\n\nReference images: image 1 is the previous panel. Character references have [image N] tags above."
+			} else {
+				prompt += "\n\nReference image 1 is the previous panel. Maintain visual continuity."
+			}
+			result, err = p.imgGen.Edit(ctx, prevPanel, prompt, p.cfg.OpenAI.Image.Size.Panel, charImages...)
 		}
 
 		if err != nil {
@@ -87,21 +103,43 @@ func (p *Pipeline) panelExists(path string) bool {
 	return err == nil
 }
 
-func (p *Pipeline) buildSceneCharacterRefs(scene model.Scene, charIndex map[string]model.Character) string {
+func (p *Pipeline) buildSceneCharacterRefs(scene model.Scene, charIndex map[string]model.Character, imageStartIdx int) string {
 	if len(scene.CharactersPresent) == 0 {
 		return "No characters in this scene."
 	}
 
 	dialogueByChar := buildDialogueMap(scene.Dialogue, charIndex)
+	charCount := len(scene.CharactersPresent)
 
 	var parts []string
+	currentIdx := imageStartIdx
 	for _, charID := range scene.CharactersPresent {
 		char, ok := charIndex[charID]
 		if !ok {
-			parts = append(parts, fmt.Sprintf("- %s: (character reference not found)", charID))
+			if imageStartIdx > 0 {
+				parts = append(parts, fmt.Sprintf("- %s [image %d]: (character reference not found)", charID, currentIdx))
+				currentIdx++
+			} else {
+				parts = append(parts, fmt.Sprintf("- %s: (character reference not found)", charID))
+			}
 			continue
 		}
+
 		ref := fmt.Sprintf("- %s: %s", char.Name, char.PhysicalDescription)
+
+		if imageStartIdx > 0 {
+			var imgParts []string
+			imgCount := 1
+			if charCount <= charRefThreshold {
+				imgCount = 2
+			}
+			for i := 0; i < imgCount; i++ {
+				imgParts = append(imgParts, fmt.Sprintf("image %d", currentIdx+i))
+			}
+			ref = fmt.Sprintf("- %s [%s]: %s", char.Name, strings.Join(imgParts, ", "), char.PhysicalDescription)
+			currentIdx += imgCount
+		}
+
 		if lines, ok := dialogueByChar[charID]; ok && len(lines) > 0 {
 			for _, line := range lines {
 				ref += fmt.Sprintf("\n  \"%s\"", line.Text)
@@ -171,4 +209,30 @@ func buildCharacterIndex(note *model.CharacterNote) map[string]model.Character {
 		idx[c.ID] = c
 	}
 	return idx
+}
+
+func (p *Pipeline) loadCharacterRefImages(projectName string, scene model.Scene, charIndex map[string]model.Character) []image.Image {
+	outputDir := p.cfg.Pipeline.OutputDir
+	charCount := len(scene.CharactersPresent)
+
+	var refs []image.Image
+	for _, charID := range scene.CharactersPresent {
+		if _, ok := charIndex[charID]; !ok {
+			continue
+		}
+
+		if charCount <= charRefThreshold {
+			sheetPath := filepath.Join(storage.SheetsDir(outputDir, projectName), fmt.Sprintf("%s_3x2.png", charID))
+			if img, err := loadImage(sheetPath); err == nil {
+				refs = append(refs, img)
+			}
+		}
+
+		posePath := filepath.Join(storage.PosesDir(outputDir, projectName), fmt.Sprintf("%s_5x5.png", charID))
+		if img, err := loadImage(posePath); err == nil {
+			refs = append(refs, img)
+		}
+	}
+
+	return refs
 }
