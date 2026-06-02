@@ -41,7 +41,6 @@ func validConfig() *Config {
 			ReadTimeout:     30 * time.Second,
 			WriteTimeout:    60 * time.Second,
 			ShutdownTimeout: 15 * time.Second,
-			RateLimit:       60,
 		},
 		Logging: LoggingConfig{
 			Level:  "info",

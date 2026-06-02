@@ -62,7 +62,6 @@ type ServerConfig struct {
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
 	AuthToken       string        `mapstructure:"auth_token"`
 	AllowedOrigins  []string      `mapstructure:"allowed_origins"`
-	RateLimit       int           `mapstructure:"rate_limit"`
 }
 
 type LoggingConfig struct {
@@ -151,10 +150,6 @@ func (c *Config) ValidateLocal() error {
 			errs = append(errs, "server.allowed_origins must not contain empty entries")
 		}
 	}
-	if c.Server.RateLimit < 1 {
-		errs = append(errs, "server.rate_limit must be >= 1")
-	}
-
 	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 	if !validLevels[strings.ToLower(c.Logging.Level)] {
 		errs = append(errs, fmt.Sprintf("logging.level must be one of: debug, info, warn, error (got %q)", c.Logging.Level))
@@ -242,7 +237,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.shutdown_timeout", "15s")
 	v.SetDefault("server.auth_token", "")
 	v.SetDefault("server.allowed_origins", []string{"http://localhost:3000", "http://localhost:8080"})
-	v.SetDefault("server.rate_limit", 60)
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "text")
 }
