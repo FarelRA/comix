@@ -122,7 +122,7 @@ func TestParseResponseFromURL(t *testing.T) {
 	}))
 	defer imgServer.Close()
 
-	result, err := parseResponse(imageResponseWithURL(imgServer.URL), imgServer.Client())
+	result, err := parseResponse(context.Background(), imageResponseWithURL(imgServer.URL), imgServer.Client())
 	if err != nil {
 		t.Fatalf("parseResponse failed: %v", err)
 	}

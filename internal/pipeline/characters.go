@@ -77,8 +77,23 @@ func (p *Pipeline) mergeChapterCharacters(master *model.CharacterNote, chapterNo
 
 	for _, chChar := range chapterNote.Characters {
 		if idx, ok := charIndex[characterLookupKey(chChar.Name)]; ok {
-			chChar.AddChapter(chapterID)
-			master.Characters[idx] = chChar
+			existing := &master.Characters[idx]
+			existing.AddChapter(chapterID)
+			if chChar.PhysicalDescription != "" {
+				existing.PhysicalDescription = chChar.PhysicalDescription
+			}
+			if chChar.PersonalityTraits != nil {
+				existing.PersonalityTraits = chChar.PersonalityTraits
+			}
+			if chChar.Aliases != nil {
+				existing.Aliases = chChar.Aliases
+			}
+			if chChar.NotableActions != nil {
+				existing.NotableActions = chChar.NotableActions
+			}
+			if chChar.Relationships != nil {
+				existing.Relationships = chChar.Relationships
+			}
 		} else {
 			if chChar.FirstChapter == "" {
 				chChar.FirstChapter = chapterID
