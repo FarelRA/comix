@@ -8,6 +8,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
+
 	"github.com/FarelRA/comix/internal/model"
 	"github.com/FarelRA/comix/internal/state"
 	"github.com/FarelRA/comix/internal/storage"
@@ -232,18 +236,41 @@ func chapterIDFromFilename(filename string) string {
 }
 
 func chapterTitleFromContent(content string, fallbackID string) string {
+	source := []byte(content)
+	doc := goldmark.DefaultParser().Parse(text.NewReader(source))
+
+	var title string
+	ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		if heading, ok := n.(*ast.Heading); ok && heading.Level == 1 && title == "" {
+			lines := n.Lines()
+			if lines.Len() > 0 {
+				seg := lines.At(0)
+				title = string(seg.Value(source))
+			}
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
+
+	if title != "" {
+		return strings.TrimSpace(title)
+	}
+
 	lines := strings.SplitN(content, "\n", 3)
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "# ") {
-			return strings.TrimPrefix(trimmed, "# ")
-		}
 		if strings.HasPrefix(trimmed, "title:") {
-			title := strings.TrimSpace(strings.TrimPrefix(trimmed, "title:"))
-			title = strings.Trim(title, "\"'")
-			return title
+			t := strings.TrimSpace(strings.TrimPrefix(trimmed, "title:"))
+			t = strings.Trim(t, "\"'")
+			if t != "" {
+				return t
+			}
 		}
 	}
+
 	return fallbackID
 }
 

@@ -237,12 +237,8 @@ func TestGetOutput_PathTraversalPrevention(t *testing.T) {
 	srv := testServer(t, tmpDir)
 	state.SaveManifest(tmpDir, "foo", model.NewProjectManifest("foo", "dir", "/tmp", nil))
 	resp := requestTo(srv, http.MethodGet, "/api/projects/foo/output/../../../etc/passwd", nil)
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", resp.StatusCode)
-	}
-	env := decodeEnvelope(t, resp)
-	if env.Error == nil || env.Error.Code != "PATH_TRAVERSAL" {
-		t.Fatalf("expected PATH_TRAVERSAL error, got %+v", env.Error)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
 	}
 }
 

@@ -78,3 +78,7 @@ func ScenesPath(root, project string) string {
 func ManifestPath(root, project string) string {
 	return filepath.Join(ProjectDir(root, project), "project.yaml")
 }
+
+func ManifestLockPath(root, project string) string {
+	return filepath.Join(ProjectDir(root, project), ".project.lock")
+}

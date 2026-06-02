@@ -32,7 +32,6 @@ func (p *Pipeline) GeneratePoses(ctx context.Context, manifest *model.ProjectMan
 	errs := make(chan string, len(note.Characters))
 
 	for _, char := range note.Characters {
-		char := char
 		g.Go(func() error {
 			charKey := storage.SlugName(char.Name)
 			sheetPath := filepath.Join(storage.SheetsDir(outputDir, projectName), fmt.Sprintf("%s_3x2.png", charKey))

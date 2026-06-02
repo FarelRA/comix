@@ -30,7 +30,6 @@ func (p *Pipeline) GenerateSheets(ctx context.Context, manifest *model.ProjectMa
 	errs := make(chan string, len(note.Characters))
 
 	for _, char := range note.Characters {
-		char := char
 		g.Go(func() error {
 			prompt := imagegen.PromptBaseSheet(char.Name, char.PhysicalDescription)
 			result, err := p.imgGen.Generate(ctx, prompt, p.cfg.OpenAI.Image.Size.Sheet)

@@ -163,17 +163,15 @@ func (p *Pipeline) maxGlobalSequence(sceneList *model.SceneList) int {
 }
 
 func (p *Pipeline) buildSceneMessages(coverContent, chapterContent string, note *model.CharacterNote) []llm.Message {
-	messages := []llm.Message{
-		{Role: llm.RoleSystem, Content: llm.SystemPromptExtractScenes()},
-	}
-
 	userContent := ""
 	if coverContent != "" {
-		userContent += "Cover: " + coverContent + "\n\n"
+		userContent += "<cover>\n" + coverContent + "\n</cover>\n\n"
 	}
-	userContent += "Chapter: " + chapterContent + "\n\n"
-	userContent += "Character Reference:\n" + mustMarshalJSON(note)
+	userContent += "<chapter_text>\n" + chapterContent + "\n</chapter_text>\n\n"
+	userContent += "<character_reference>\n" + mustMarshalJSON(note) + "\n</character_reference>"
 
-	messages = append(messages, llm.Message{Role: llm.RoleUser, Content: userContent})
-	return messages
+	return []llm.Message{
+		{Role: llm.RoleSystem, Content: llm.SystemPromptExtractScenes()},
+		{Role: llm.RoleUser, Content: userContent},
+	}
 }
