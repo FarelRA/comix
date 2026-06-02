@@ -56,13 +56,13 @@ func (p *Pipeline) RenderScenes(ctx context.Context, manifest *model.ProjectMani
 			continue
 		}
 
-		charImages := p.loadCharacterRefImages(projectName, scene, charIndex)
+		charImages, loadedChars := p.loadCharacterRefImages(projectName, scene, charIndex)
 
 		imageStartIdx := 1
 		if prevPanel != nil {
 			imageStartIdx = 2
 		}
-		charRefs := p.buildSceneCharacterRefs(scene, charIndex, imageStartIdx)
+		charRefs := p.buildSceneCharacterRefs(scene, charIndex, imageStartIdx, loadedChars)
 		sceneDesc := p.buildSceneDescription(scene)
 
 		var result *imagegen.ImageResult
@@ -110,31 +110,37 @@ func (p *Pipeline) panelExists(path string) bool {
 	return err == nil
 }
 
-func (p *Pipeline) buildSceneCharacterRefs(scene model.Scene, charIndex map[string]model.Character, imageStartIdx int) string {
+func (p *Pipeline) buildSceneCharacterRefs(scene model.Scene, charIndex map[string]model.Character, imageStartIdx int, loadedChars []string) string {
 	if len(scene.CharactersPresent) == 0 {
 		return "No characters in this scene."
 	}
 
 	dialogueByChar := buildDialogueMap(scene.Dialogue, charIndex)
 	charCount := len(scene.CharactersPresent)
+	loadedSet := make(map[string]bool, len(loadedChars))
+	for _, name := range loadedChars {
+		loadedSet[characterLookupKey(name)] = true
+	}
 
 	var parts []string
 	currentIdx := imageStartIdx
 	for _, charName := range scene.CharactersPresent {
 		char, ok := charIndex[characterLookupKey(charName)]
 		if !ok {
-			if imageStartIdx > 0 {
-				parts = append(parts, fmt.Sprintf("- %s [image %d]: (character reference not found)", charName, currentIdx))
-				currentIdx++
-			} else {
-				parts = append(parts, fmt.Sprintf("- %s: (character reference not found)", charName))
+			parts = append(parts, fmt.Sprintf("- %s: (character reference not found)", charName))
+			if loadedSet[characterLookupKey(charName)] {
+				if charCount <= charRefThreshold {
+					currentIdx += 2
+				} else {
+					currentIdx++
+				}
 			}
 			continue
 		}
 
 		ref := fmt.Sprintf("- %s: %s", char.Name, char.PhysicalDescription)
 
-		if imageStartIdx > 0 {
+		if imageStartIdx > 0 && loadedSet[characterLookupKey(char.Name)] {
 			var imgParts []string
 			imgCount := 1
 			if charCount <= charRefThreshold {
@@ -225,34 +231,51 @@ func characterLookupKey(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
 }
 
-func (p *Pipeline) loadCharacterRefImages(projectName string, scene model.Scene, charIndex map[string]model.Character) []image.Image {
+const maxReferenceImages = 15
+
+func (p *Pipeline) loadCharacterRefImages(projectName string, scene model.Scene, charIndex map[string]model.Character) ([]image.Image, []string) {
 	outputDir := p.cfg.Pipeline.OutputDir
 	charCount := len(scene.CharactersPresent)
 
 	var refs []image.Image
+	var loadedChars []string
 	for _, charName := range scene.CharactersPresent {
+		if len(refs) >= maxReferenceImages {
+			slog.Warn("reference image cap reached, skipping remaining characters", "cap", maxReferenceImages, "remaining", len(scene.CharactersPresent)-len(loadedChars))
+			break
+		}
+
 		char, ok := charIndex[characterLookupKey(charName)]
 		if !ok {
 			continue
 		}
 		charKey := storage.SlugName(char.Name)
+		hadAny := false
 
-		if charCount <= charRefThreshold {
+		if charCount <= charRefThreshold && len(refs) < maxReferenceImages {
 			sheetPath := filepath.Join(storage.SheetsDir(outputDir, projectName), fmt.Sprintf("%s_3x2.png", charKey))
 			if img, err := loadImage(sheetPath); err == nil {
 				refs = append(refs, img)
+				hadAny = true
 			} else {
 				slog.Warn("missing character sheet reference", "character", char.Name, "path", sheetPath, "error", err)
 			}
 		}
 
-		posePath := filepath.Join(storage.PosesDir(outputDir, projectName), fmt.Sprintf("%s_5x5.png", charKey))
-		if img, err := loadImage(posePath); err == nil {
-			refs = append(refs, img)
-		} else {
-			slog.Warn("missing character pose reference", "character", char.Name, "path", posePath, "error", err)
+		if len(refs) < maxReferenceImages {
+			posePath := filepath.Join(storage.PosesDir(outputDir, projectName), fmt.Sprintf("%s_5x5.png", charKey))
+			if img, err := loadImage(posePath); err == nil {
+				refs = append(refs, img)
+				hadAny = true
+			} else {
+				slog.Warn("missing character pose reference", "character", char.Name, "path", posePath, "error", err)
+			}
+		}
+
+		if hadAny {
+			loadedChars = append(loadedChars, char.Name)
 		}
 	}
 
-	return refs
+	return refs, loadedChars
 }

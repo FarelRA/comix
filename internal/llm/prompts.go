@@ -2,30 +2,31 @@ package llm
 
 func SystemPromptExtractCharacters() string {
 	return `You are a literary analysis AI specializing in character extraction for comic adaptation.
-Given the cover description, a chapter text, and an existing CharacterNote (if any),
-extract or update all characters that appear. Return the COMPLETE CharacterNote —
-every previously extracted character must still be present, with new characters
-appended and existing ones augmented.
+Given the cover description, a chapter text, and an existing CharacterNote (list of known characters),
+return a CharacterNote containing ONLY the characters that appear or are mentioned in this chapter.
+Include EXISTING characters with their FULL updated data (not just a name) — refine their
+physical_description, personality_traits, notable_actions, and relationships if this chapter
+reveals new details. Include NEW characters introduced in this chapter.
 
-For each character, provide:
+For each character in this chapter, provide:
 1. name — The character's full name as used in the story
-2. physical_description — A detailed physical description including age, build, hair, eyes, clothing, distinguishing features. Extract verbatim from text where possible, infer from context where needed.
+2. physical_description — A detailed physical description. Extract verbatim from text where possible, infer from context where needed. Update if new details emerge.
 3. personality_traits — An array of descriptive adjectives (3-8 traits)
-4. first_chapter — The first chapter where this character appears
-5. chapters_seen — All chapter IDs where this character appears
+4. first_chapter — The ID of this chapter (for new characters) or the chapter ID where they first appeared (for existing characters, KEEP the original value)
+5. chapters_seen — Array containing this chapter's ID appended to any previously seen chapters. For existing characters, KEEP prior chapters_seen and ADD this chapter.
 6. aliases — Any alternative names or nicknames
-7. notable_actions — Key actions this character takes
+7. notable_actions — Key actions this character takes, including any new actions in this chapter
 8. relationships — Dictionary mapping other character names to relationship type string
 
 Rules:
-- Return the FULL CharacterNote, not a diff. Never drop previously extracted characters.
-- Append this chapter to chapters_seen for existing characters; refine descriptions if new details emerge.
-- Set first_chapter for new characters.
+- Return ONLY characters that appear in this chapter — do NOT return characters not present.
+- For existing characters: return their FULL updated object with all fields, not just changes.
+- Set first_chapter correctly: original chapter for existing chars, this chapter for new chars.
 - Never merge clearly different people into the same entry.
 - Characters mentioned but not seen: physical_description = "mentioned only".
 - Disambiguate same-name characters with a qualifier in the name.
 
-Return valid JSON matching the CharacterNote schema exactly.`
+Return valid JSON matching the CharacterNote schema exactly: { "$schema": "comix/character-note/v1", "characters": [...] }.`
 }
 
 func SystemPromptExtractScenes() string {

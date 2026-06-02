@@ -818,7 +818,7 @@ func TestBuildSceneCharacterRefs(t *testing.T) {
 	scene := model.Scene{
 		CharactersPresent: []string{"Alice"},
 	}
-	refs := p.buildSceneCharacterRefs(scene, charIndex, 0)
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 0, nil)
 	if !strings.Contains(refs, "Alice") {
 		t.Error("expected character name in refs")
 	}
@@ -830,7 +830,7 @@ func TestBuildSceneCharacterRefs(t *testing.T) {
 func TestBuildSceneCharacterRefs_NoCharacters(t *testing.T) {
 	p := &Pipeline{}
 	scene := model.Scene{}
-	refs := p.buildSceneCharacterRefs(scene, map[string]model.Character{}, 0)
+	refs := p.buildSceneCharacterRefs(scene, map[string]model.Character{}, 0, nil)
 	if refs != "No characters in this scene." {
 		t.Errorf("expected 'No characters' message, got %q", refs)
 	}
@@ -842,7 +842,7 @@ func TestBuildSceneCharacterRefs_MissingCharacter(t *testing.T) {
 	scene := model.Scene{
 		CharactersPresent: []string{"Alice"},
 	}
-	refs := p.buildSceneCharacterRefs(scene, charIndex, 0)
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 0, nil)
 	if !strings.Contains(refs, "character reference not found") {
 		t.Error("expected missing character warning")
 	}
@@ -857,7 +857,7 @@ func TestBuildSceneCharacterRefs_WithDialogue(t *testing.T) {
 		CharactersPresent: []string{"Alice"},
 		Dialogue:          []model.DialogueLine{{Speaker: "Alice", Text: "Hello!"}},
 	}
-	refs := p.buildSceneCharacterRefs(scene, charIndex, 0)
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 0, nil)
 	if !strings.Contains(refs, "Hello!") {
 		t.Error("expected dialogue in refs")
 	}
@@ -875,7 +875,7 @@ func TestBuildSceneCharacterRefs_WithImageStartIdx(t *testing.T) {
 		Dialogue:          []model.DialogueLine{{Speaker: "Alice", Text: "Oh dear!"}},
 	}
 
-	refs := p.buildSceneCharacterRefs(scene, charIndex, 1)
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 1, []string{"Alice", "White Rabbit"})
 
 	if !strings.Contains(refs, "[image 1, image 2]") {
 		t.Error("expected alice to have [image 1, image 2] (2 refs since <=7 chars)")
@@ -905,7 +905,8 @@ func TestBuildSceneCharacterRefs_WithImageStartIdxManyChars(t *testing.T) {
 		CharactersPresent: []string{"Alice", "Mad Hatter", "White Rabbit", "Cheshire Cat", "Queen of Hearts", "King of Hearts", "March Hare", "Dormouse"},
 	}
 
-	refs := p.buildSceneCharacterRefs(scene, charIndex, 2)
+	allNames := []string{"Alice", "Mad Hatter", "White Rabbit", "Cheshire Cat", "Queen of Hearts", "King of Hearts", "March Hare", "Dormouse"}
+	refs := p.buildSceneCharacterRefs(scene, charIndex, 2, allNames)
 
 	if !strings.Contains(refs, "[image 2]") {
 		t.Error("expected alice (first of 8 chars) to have [image 2] since offset=2 (>7 chars = 1 image each)")
@@ -1135,8 +1136,8 @@ func TestBuildSceneMessages(t *testing.T) {
 	if !strings.Contains(messages[1].Content, "cover content") {
 		t.Errorf("expected cover in content")
 	}
-	if !strings.Contains(messages[1].Content, "Character Reference") {
-		t.Errorf("expected Character Reference in content")
+	if !strings.Contains(messages[1].Content, "<character_reference>") {
+		t.Errorf("expected character_reference tag in content")
 	}
 }
 

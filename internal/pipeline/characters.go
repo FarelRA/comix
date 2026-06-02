@@ -52,20 +52,12 @@ func (p *Pipeline) ExtractCharacters(ctx context.Context, manifest *model.Projec
 
 		messages := p.buildCharacterMessages(coverContent, chapterContent, note)
 
-		updated := &model.CharacterNote{}
-		if err := p.llm.Chat(ctx, messages, updated, p.cfg.OpenAI.LLM.Temperature); err != nil {
+		chapterNote := &model.CharacterNote{}
+		if err := p.llm.Chat(ctx, messages, chapterNote, p.cfg.OpenAI.LLM.Temperature); err != nil {
 			return nil, fmt.Errorf("llm character extraction for %s: %w", ch.ID, err)
 		}
 
-		if len(updated.Characters) == 0 && len(note.Characters) > 0 {
-			updated.Characters = note.Characters
-			updated.Schema = note.Schema
-		}
-
-		if updated.Schema == "" {
-			updated.Schema = "comix/character-note/v1"
-		}
-		note = updated
+		note = p.mergeChapterCharacters(note, chapterNote, ch.ID)
 
 		if err := state.SaveCharacterNote(outputDir, projectName, note); err != nil {
 			return nil, fmt.Errorf("saving character note after %s: %w", ch.ID, err)
@@ -75,6 +67,29 @@ func (p *Pipeline) ExtractCharacters(ctx context.Context, manifest *model.Projec
 	}
 
 	return note, nil
+}
+
+func (p *Pipeline) mergeChapterCharacters(master *model.CharacterNote, chapterNote *model.CharacterNote, chapterID string) *model.CharacterNote {
+	charIndex := make(map[string]int)
+	for i, c := range master.Characters {
+		charIndex[characterLookupKey(c.Name)] = i
+	}
+
+	for _, chChar := range chapterNote.Characters {
+		if idx, ok := charIndex[characterLookupKey(chChar.Name)]; ok {
+			chChar.AddChapter(chapterID)
+			master.Characters[idx] = chChar
+		} else {
+			if chChar.FirstChapter == "" {
+				chChar.FirstChapter = chapterID
+			}
+			chChar.AddChapter(chapterID)
+			master.Characters = append(master.Characters, chChar)
+			charIndex[characterLookupKey(chChar.Name)] = len(master.Characters) - 1
+		}
+	}
+
+	return master
 }
 
 func (p *Pipeline) readRawFile(outputDir, projectName, filename string) (string, error) {
@@ -134,26 +149,23 @@ func lastCharacterChapter(note *model.CharacterNote, chapters []model.ChapterMet
 }
 
 func (p *Pipeline) buildCharacterMessages(coverContent, chapterContent string, note *model.CharacterNote) []llm.Message {
-	messages := []llm.Message{
-		{Role: llm.RoleSystem, Content: llm.SystemPromptExtractCharacters()},
-	}
-
 	userContent := ""
 	if coverContent != "" {
-		userContent += "Cover:\n" + coverContent + "\n\n"
+		userContent += "<cover>\n" + coverContent + "\n</cover>\n\n"
 	}
-	userContent += "Chapter:\n" + chapterContent
-	messages = append(messages, llm.Message{Role: llm.RoleUser, Content: userContent})
+	userContent += "<chapter_text>\n" + chapterContent + "\n</chapter_text>"
 
 	if note != nil && len(note.Characters) > 0 {
-		noteJSON := fmt.Sprintf(
-			"Existing CharacterNote (return this COMPLETE with your updates appended):\n%s",
+		userContent += fmt.Sprintf(
+			"\n\n<known_characters>\n%s\n</known_characters>\nReturn a CharacterNote with ONLY characters that appear in this chapter. Include existing characters with their full updated data.",
 			mustMarshalJSON(note),
 		)
-		messages = append(messages, llm.Message{Role: llm.RoleUser, Content: noteJSON})
 	}
 
-	return messages
+	return []llm.Message{
+		{Role: llm.RoleSystem, Content: llm.SystemPromptExtractCharacters()},
+		{Role: llm.RoleUser, Content: userContent},
+	}
 }
 
 func mustMarshalJSON(v any) string {

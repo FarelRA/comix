@@ -302,34 +302,38 @@ func (s *Server) handleIngest(w http.ResponseWriter, r *http.Request) {
 
 	var chapterPaths []string
 	for i, fh := range chapters {
-		f, err := fh.Open()
-		if err != nil {
-			writeError(w, r, http.StatusInternalServerError, "READ_FAILED", fmt.Sprintf("Failed to read chapter[%d]: %s", i, err.Error()), nil)
-			return
-		}
-		defer f.Close()
-
-		data, err := io.ReadAll(io.LimitReader(f, maxUploadBytes+1))
-		if err != nil {
-			writeError(w, r, http.StatusInternalServerError, "READ_FAILED", fmt.Sprintf("Failed to read chapter[%d]: %s", i, err.Error()), nil)
-			return
-		}
-		if int64(len(data)) > maxUploadBytes {
-			writeError(w, r, http.StatusRequestEntityTooLarge, "UPLOAD_TOO_LARGE", fmt.Sprintf("Chapter[%d] is too large", i), nil)
-			return
-		}
-
 		filename, err := safeUploadFilename(fh.Filename)
 		if err != nil {
 			writeError(w, r, http.StatusBadRequest, "INVALID_UPLOAD_FILENAME", err.Error(), nil)
 			return
 		}
-		chPath := filepath.Join(tmpDir, filename)
-		if err := os.WriteFile(chPath, data, 0644); err != nil {
-			writeError(w, r, http.StatusInternalServerError, "WRITE_FAILED", err.Error(), nil)
+
+		err = func() error {
+			f, err := fh.Open()
+			if err != nil {
+				return fmt.Errorf("opening chapter: %w", err)
+			}
+			defer f.Close()
+
+			data, err := io.ReadAll(io.LimitReader(f, maxUploadBytes+1))
+			if err != nil {
+				return fmt.Errorf("reading chapter: %w", err)
+			}
+			if int64(len(data)) > maxUploadBytes {
+				return fmt.Errorf("chapter too large")
+			}
+
+			chPath := filepath.Join(tmpDir, filename)
+			if err := os.WriteFile(chPath, data, 0644); err != nil {
+				return fmt.Errorf("writing chapter: %w", err)
+			}
+			chapterPaths = append(chapterPaths, chPath)
+			return nil
+		}()
+		if err != nil {
+			writeError(w, r, http.StatusInternalServerError, "READ_FAILED", fmt.Sprintf("Failed to process chapter[%d]: %s", i, err.Error()), nil)
 			return
 		}
-		chapterPaths = append(chapterPaths, chPath)
 	}
 
 	source := pipeline.IngestSource{
@@ -561,19 +565,19 @@ func (s *Server) handleGetOutput(w http.ResponseWriter, r *http.Request) {
 	filePath := chi.URLParam(r, "*")
 
 	projectDir := storage.ProjectDir(s.cfg.Pipeline.OutputDir, id)
-	fullPath, err := storage.SafeJoin(projectDir, filePath)
+	exists, err := storage.DirectoryExists(projectDir)
 	if err != nil {
-		writeError(w, r, http.StatusForbidden, "PATH_TRAVERSAL", "Access denied", nil)
+		writeError(w, r, http.StatusInternalServerError, "CHECK_FAILED", err.Error(), nil)
+		return
+	}
+	if !exists {
+		writeError(w, r, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("Project %q not found", id), nil)
 		return
 	}
 
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		writeError(w, r, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("File %q not found", filePath), nil)
-		return
-	}
-
-	w.Header().Set("Content-Type", detectContentType(fullPath))
-	http.ServeFile(w, r, fullPath)
+	projectFS := os.DirFS(projectDir)
+	w.Header().Set("Content-Type", detectContentType(filePath))
+	http.ServeFileFS(w, r, projectFS, filePath)
 }
 
 func safeUploadFilename(name string) (string, error) {

@@ -188,5 +188,5 @@ func imageToPNGReader(img image.Image) (io.Reader, error) {
 	if err := png.Encode(&buf, img); err != nil {
 		return nil, err
 	}
-	return &buf, nil
+	return bytes.NewReader(buf.Bytes()), nil
 }
