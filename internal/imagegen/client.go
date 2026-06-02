@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
+	_ "image/jpeg"
 	"image/png"
 	"io"
 	"net/http"
@@ -93,7 +94,7 @@ func (c *Client) Generate(ctx context.Context, prompt, size string) (*ImageResul
 	if err != nil {
 		return nil, fmt.Errorf("image generation: %w", err)
 	}
-	return parseResponse(resp, c.httpClient)
+	return parseResponse(ctx, resp, c.httpClient)
 }
 
 func (c *Client) GenerateWithReferences(ctx context.Context, prompt, size string, references ...image.Image) (*ImageResult, error) {
@@ -119,10 +120,10 @@ func (c *Client) GenerateWithReferences(ctx context.Context, prompt, size string
 	if err != nil {
 		return nil, fmt.Errorf("image edit: %w", err)
 	}
-	return parseResponse(resp, c.httpClient)
+	return parseResponse(ctx, resp, c.httpClient)
 }
 
-func parseResponse(resp *openai.ImagesResponse, hc *http.Client) (*ImageResult, error) {
+func parseResponse(ctx context.Context, resp *openai.ImagesResponse, hc *http.Client) (*ImageResult, error) {
 	if len(resp.Data) == 0 {
 		return nil, fmt.Errorf("image response has no data")
 	}
@@ -151,7 +152,11 @@ func parseResponse(resp *openai.ImagesResponse, hc *http.Client) (*ImageResult, 
 		if hc == nil {
 			hc = http.DefaultClient
 		}
-		imgResp, err := hc.Get(d.URL)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, d.URL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("creating download request: %w", err)
+		}
+		imgResp, err := hc.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("downloading image from url: %w", err)
 		}

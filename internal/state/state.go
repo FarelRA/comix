@@ -23,16 +23,18 @@ func LoadCharacterNote(root, project string) (*model.CharacterNote, error) {
 }
 
 func SaveCharacterNote(root, project string, note *model.CharacterNote) error {
-	if err := storage.ValidateName(project); err != nil {
-		return err
-	}
-	if err := storage.EnsureDir(storage.StateDir(root, project)); err != nil {
-		return fmt.Errorf("ensuring state dir: %w", err)
-	}
-	if err := storage.SaveJSON(storage.CharactersPath(root, project), note); err != nil {
-		return fmt.Errorf("saving character note: %w", err)
-	}
-	return nil
+	return withProjectLock(root, project, func() error {
+		if err := storage.ValidateName(project); err != nil {
+			return err
+		}
+		if err := storage.EnsureDir(storage.StateDir(root, project)); err != nil {
+			return fmt.Errorf("ensuring state dir: %w", err)
+		}
+		if err := storage.SaveJSON(storage.CharactersPath(root, project), note); err != nil {
+			return fmt.Errorf("saving character note: %w", err)
+		}
+		return nil
+	})
 }
 
 func LoadSceneList(root, project string) (*model.SceneList, error) {
@@ -47,16 +49,18 @@ func LoadSceneList(root, project string) (*model.SceneList, error) {
 }
 
 func SaveSceneList(root, project string, scenes *model.SceneList) error {
-	if err := storage.ValidateName(project); err != nil {
-		return err
-	}
-	if err := storage.EnsureDir(storage.StateDir(root, project)); err != nil {
-		return fmt.Errorf("ensuring state dir: %w", err)
-	}
-	if err := storage.SaveJSON(storage.ScenesPath(root, project), scenes); err != nil {
-		return fmt.Errorf("saving scene list: %w", err)
-	}
-	return nil
+	return withProjectLock(root, project, func() error {
+		if err := storage.ValidateName(project); err != nil {
+			return err
+		}
+		if err := storage.EnsureDir(storage.StateDir(root, project)); err != nil {
+			return fmt.Errorf("ensuring state dir: %w", err)
+		}
+		if err := storage.SaveJSON(storage.ScenesPath(root, project), scenes); err != nil {
+			return fmt.Errorf("saving scene list: %w", err)
+		}
+		return nil
+	})
 }
 
 func LoadManifest(root, project string) (*model.ProjectManifest, error) {
@@ -97,21 +101,21 @@ func ManifestExists(root, project string) (bool, error) {
 	return true, nil
 }
 
-func withManifestLock(root, project string, fn func() error) error {
-	lockPath := storage.ManifestLockPath(root, project)
+func withProjectLock(root, project string, fn func() error) error {
+	lockPath := storage.ProjectLockPath(root, project)
 	if err := storage.EnsureDir(storage.ProjectDir(root, project)); err != nil {
 		return fmt.Errorf("ensuring project dir for lock: %w", err)
 	}
 	fileLock := flock.New(lockPath)
 	if err := fileLock.Lock(); err != nil {
-		return fmt.Errorf("acquiring manifest lock: %w", err)
+		return fmt.Errorf("acquiring project lock: %w", err)
 	}
 	defer fileLock.Unlock()
 	return fn()
 }
 
 func UpdateManifestPhase(root, project, phase string, status model.PhaseStatus) error {
-	return withManifestLock(root, project, func() error {
+	return withProjectLock(root, project, func() error {
 		m, err := LoadManifest(root, project)
 		if err != nil {
 			return fmt.Errorf("loading manifest for update: %w", err)
@@ -156,7 +160,7 @@ func UpdateManifestPhase(root, project, phase string, status model.PhaseStatus) 
 }
 
 func RecordPhaseError(root, project, phase string, err error) error {
-	return withManifestLock(root, project, func() error {
+	return withProjectLock(root, project, func() error {
 		m, loadErr := LoadManifest(root, project)
 		if loadErr != nil {
 			return loadErr

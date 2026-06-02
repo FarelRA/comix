@@ -10,15 +10,20 @@ type CharacterNote struct {
 	Characters []Character `json:"characters" yaml:"characters"`
 }
 
+type Relationship struct {
+	Target string `json:"target" yaml:"target"`
+	Type   string `json:"type" yaml:"type"`
+}
+
 type Character struct {
-	Name                string            `json:"name" yaml:"name"`
-	PhysicalDescription string            `json:"physical_description" yaml:"physical_description"`
-	PersonalityTraits   []string          `json:"personality_traits" yaml:"personality_traits"`
-	FirstChapter        string            `json:"first_chapter" yaml:"first_chapter"`
-	ChaptersSeen        []string          `json:"chapters_seen" yaml:"chapters_seen"`
-	Aliases             []string          `json:"aliases,omitempty" yaml:"aliases,omitempty"`
-	NotableActions      []string          `json:"notable_actions,omitempty" yaml:"notable_actions,omitempty"`
-	Relationships       map[string]string `json:"relationships,omitempty" yaml:"relationships,omitempty"`
+	Name                string         `json:"name" yaml:"name"`
+	PhysicalDescription string         `json:"physical_description" yaml:"physical_description"`
+	PersonalityTraits   []string       `json:"personality_traits" yaml:"personality_traits"`
+	FirstChapter        string         `json:"first_chapter" yaml:"first_chapter"`
+	ChaptersSeen        []string       `json:"chapters_seen" yaml:"chapters_seen"`
+	Aliases             []string       `json:"aliases,omitempty" yaml:"aliases,omitempty"`
+	NotableActions      []string       `json:"notable_actions,omitempty" yaml:"notable_actions,omitempty"`
+	Relationships       []Relationship `json:"relationships,omitempty" yaml:"relationships,omitempty"`
 }
 
 func (cn *CharacterNote) Validate() error {
