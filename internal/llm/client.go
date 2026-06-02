@@ -12,10 +12,7 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/shared"
-	"go.opentelemetry.io/otel"
 )
-
-var tracer = otel.Tracer("github.com/FarelRA/comix/internal/llm")
 
 type Role string
 
@@ -95,8 +92,6 @@ func (c *Client) Chat(ctx context.Context, messages []Message, schema any, tempe
 		return fmt.Errorf("llm chat: schema is required; use ChatRaw for unstructured responses")
 	}
 
-	ctx, span := tracer.Start(ctx, "llm.chat")
-	defer span.End()
 	apiMessages := buildMessages(messages)
 
 	params := openai.ChatCompletionNewParams{
@@ -127,8 +122,6 @@ func (c *Client) Chat(ctx context.Context, messages []Message, schema any, tempe
 }
 
 func (c *Client) ChatRaw(ctx context.Context, messages []Message, temperature float64) (*Result, error) {
-	ctx, span := tracer.Start(ctx, "llm.chat_raw")
-	defer span.End()
 	apiMessages := buildMessages(messages)
 
 	params := openai.ChatCompletionNewParams{

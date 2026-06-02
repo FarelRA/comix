@@ -14,10 +14,7 @@ import (
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-	"go.opentelemetry.io/otel"
 )
-
-var tracer = otel.Tracer("github.com/FarelRA/comix/internal/imagegen")
 
 type TokenUsage struct {
 	PromptTokens     int
@@ -86,8 +83,6 @@ func (c *Client) WithBaseURL(url string) *Client {
 }
 
 func (c *Client) Generate(ctx context.Context, prompt, size string) (*ImageResult, error) {
-	ctx, span := tracer.Start(ctx, "image.generate")
-	defer span.End()
 	resp, err := c.getClient().Images.Generate(ctx, openai.ImageGenerateParams{
 		Model:   openai.ImageModel(c.model),
 		Prompt:  prompt,
@@ -102,8 +97,6 @@ func (c *Client) Generate(ctx context.Context, prompt, size string) (*ImageResul
 }
 
 func (c *Client) GenerateWithReferences(ctx context.Context, prompt, size string, references ...image.Image) (*ImageResult, error) {
-	ctx, span := tracer.Start(ctx, "image.generate_with_references")
-	defer span.End()
 	readers := make([]io.Reader, 0, len(references))
 	for _, img := range references {
 		reader, err := imageToPNGReader(img)
