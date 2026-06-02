@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/go-chi/httprate"
 
 	"github.com/FarelRA/comix/internal/config"
 	"github.com/FarelRA/comix/internal/pipeline"
@@ -89,7 +88,6 @@ func (s *Server) setupMiddleware() {
 	s.router.Use(chiMiddleware.RealIP)
 	s.router.Use(chiMiddleware.Recoverer)
 	s.router.Use(chiMiddleware.Logger)
-	s.router.Use(httprate.LimitByIP(s.cfg.Server.RateLimit, time.Minute))
 	s.router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   s.cfg.Server.AllowedOrigins,
 		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},

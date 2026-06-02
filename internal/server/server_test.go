@@ -60,7 +60,6 @@ func testConfig(outputDir string) *config.Config {
 			WriteTimeout:    60000000000,
 			ShutdownTimeout: 15000000000,
 			AllowedOrigins:  []string{"http://example.com"},
-			RateLimit:       1000,
 		},
 		Logging: config.LoggingConfig{
 			Level:  "info",

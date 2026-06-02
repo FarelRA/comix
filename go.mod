@@ -5,7 +5,6 @@ go 1.26
 require (
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/cors v1.2.2
-	github.com/go-chi/httprate v0.15.0
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/gofrs/flock v0.12.1
 	github.com/google/renameio/v2 v2.0.2

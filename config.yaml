@@ -31,7 +31,6 @@ server:
   write_timeout: 60s
   shutdown_timeout: 15s
   auth_token: "${COMIX_AUTH_TOKEN}"
-  rate_limit: 60
   allowed_origins:
     - "http://localhost:3000"
     - "http://localhost:8080"
