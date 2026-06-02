@@ -15,10 +15,6 @@ import (
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/FarelRA/comix/internal/config"
 	"github.com/FarelRA/comix/internal/pipeline"
@@ -103,9 +99,6 @@ func (s *Server) setupMiddleware() {
 		MaxAge:           86400,
 	}))
 	s.router.Use(s.auth)
-	s.router.Use(func(next http.Handler) http.Handler {
-		return otelhttp.NewHandler(next, "comix-http")
-	})
 }
 
 func (s *Server) setupRoutes() {
@@ -132,27 +125,7 @@ func (s *Server) setupRoutes() {
 	})
 }
 
-func setupOTel() *trace.TracerProvider {
-	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
-	if err != nil {
-		slog.Warn("failed to create stdout trace exporter, using noop tracer", "error", err)
-		return trace.NewTracerProvider()
-	}
-	tp := trace.NewTracerProvider(
-		trace.WithBatcher(exporter),
-	)
-	otel.SetTracerProvider(tp)
-	slog.Info("open-telemetry tracing initialized with stdout exporter")
-	return tp
-}
-
 func (s *Server) Start() error {
-	tp := setupOTel()
-	defer func() {
-		if err := tp.Shutdown(context.Background()); err != nil {
-			slog.Error("shutting down tracer provider", "error", err)
-		}
-	}()
 
 	if s.cfg.Server.AuthToken == "" && s.cfg.Server.Host != "localhost" && s.cfg.Server.Host != "127.0.0.1" && s.cfg.Server.Host != "::1" {
 		return fmt.Errorf("server.auth_token is required when binding to non-local host %q", s.cfg.Server.Host)
