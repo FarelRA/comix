@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -8,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/google/renameio/v2"
+	"github.com/google/renameio/v2/maybe"
 	"gopkg.in/yaml.v3"
 )
 
@@ -77,25 +78,12 @@ func LoadYAML(path string, dest any) error {
 }
 
 func SavePNG(path string, img image.Image) error {
-	if err := EnsureDir(filepath.Dir(path)); err != nil {
-		return err
-	}
-	f, err := renameio.TempFile(filepath.Dir(path), path)
-	if err != nil {
-		return fmt.Errorf("creating png %s: %w", path, err)
-	}
-	defer f.Cleanup()
-
-	if err := png.Encode(f, img); err != nil {
-		_ = f.Close()
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
 		return fmt.Errorf("encoding png %s: %w", path, err)
 	}
-	if err := f.Chmod(0644); err != nil {
-		_ = f.Close()
-		return fmt.Errorf("setting png permissions %s: %w", path, err)
-	}
-	if err := f.CloseAtomicallyReplace(); err != nil {
-		return fmt.Errorf("closing png %s: %w", path, err)
+	if err := maybe.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("writing png %s: %w", path, err)
 	}
 	return nil
 }
@@ -104,20 +92,7 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	if err := EnsureDir(filepath.Dir(path)); err != nil {
 		return err
 	}
-	f, err := renameio.TempFile(filepath.Dir(path), path)
-	if err != nil {
-		return err
-	}
-	defer f.Cleanup()
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if err := f.Chmod(perm); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.CloseAtomicallyReplace()
+	return maybe.WriteFile(path, data, perm)
 }
 
 func EnsureDir(path string) error {
